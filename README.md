@@ -1,11 +1,12 @@
 # healthtech-intel
 
-A market intelligence tool for the health IT ecosystem with two research skills:
+A market intelligence tool for the health IT ecosystem with three skills:
 
+- **Vendor discovery** — Build a competitor list from natural language. "Find AI scribe competitors to Nuance" → curated company list → CSV ready for research.
 - **Vendor research** — Profile health IT companies for competitive analysis. Who are they, what do they sell, who have they sold to, how are they funded, and what is their regulatory status?
 - **Health system research** — Profile hospitals and health systems for BD prospecting. A free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/), powered by public CMS data and Claude's web search.
 
-Both skills share the same architecture: structured JSON output, per-field source URLs, and confidence scores.
+Research skills share the same architecture: structured JSON output, per-field source URLs, and confidence scores.
 
 ---
 
@@ -24,15 +25,16 @@ no cross-company context leakage.
 
 Requires `ANTHROPIC_API_KEY` — set it as an environment variable before running.
 
-### Two Interfaces
+### Three Interfaces
 
 | Interface | Use case | How |
 |---|---|---|
-| **Claude Code skill** | Single company, interactive | Invoke `researching-health-it-vendor` or `researching-health-system` skill in Claude Code |
-| **CLI batch** | CSV → CSV, any scale | `python lookup.py --skill ... --input ... --output ...` |
+| **Claude Code discovery agent** | Build a competitor list from natural language, iteratively | Invoke `health-it-vendor-discoverer` agent in Claude Code |
+| **Claude Code research skill** | Profile a single company or health system, interactive | Invoke `researching-health-it-vendor` or `researching-health-system` skill in Claude Code |
+| **CLI batch** | CSV → CSV at any scale, or discover + research in one command | `python lookup.py --skill ... --input ... --output ...` |
 
-The same skill file (`.claude/skills/`) drives both interfaces. Claude Code invokes it
-interactively; Python loads it as the research prompt for batch runs.
+The same skill files (`.claude/skills/`) drive both Claude Code and CLI. Claude Code
+invokes them interactively; Python loads them as prompt templates for batch runs.
 
 ### Components
 
@@ -44,9 +46,12 @@ healthtech-intel/
 ├── sample_health_systems.csv          # Sample health system names
 └── .claude/
     ├── agents/
-    │   ├── health-it-vendor-researcher.md   # Claude Code agent (single company)
-    │   └── health-system-researcher.md      # Claude Code agent (single hospital)
+    │   ├── health-it-vendor-discoverer.md   # Claude Code agent — build competitor lists
+    │   ├── health-it-vendor-researcher.md   # Claude Code agent — single company profile
+    │   └── health-system-researcher.md      # Claude Code agent — single hospital profile
     └── skills/
+        ├── discovering-health-it-competitors/
+        │   └── SKILL.md                     # Discovery prompt — NL query → company list
         ├── researching-health-it-vendor/
         │   ├── SKILL.md                     # Research prompt + output schema
         │   └── references/
@@ -61,8 +66,25 @@ healthtech-intel/
 
 ### Data Flow
 
+**Phase 1 — Discovery** (vendor research only, optional):
 ```
-Input CSV (entity_name column)  —or—  CMS discovery (--discover --state XX)
+Natural language query (--discover-query or Claude Code UI)
+    ↓
+discovering-health-it-competitors skill
+    ↓
+LLM searches web — market maps, KLAS, Crunchbase, analyst reports
+    ↓
+Returns JSON list of company names
+    ↓
+[Claude Code UI: iterative refinement → save discovered_competitors.csv]
+[CLI: list feeds directly into Phase 2]
+```
+
+**Phase 2 — Research** (all skills):
+```
+Input CSV (entity_name column)
+  —or—  CMS discovery (--discover --state XX)
+  —or—  Vendor discovery output from Phase 1
     ↓
 lookup.py loads skill file from .claude/skills/<skill>/SKILL.md
     ↓
@@ -93,6 +115,95 @@ Every run writes a pair of CSVs:
 
 ---
 
+## Design Decisions
+
+### One context window per company
+Each entity gets a fresh conversation with no shared history. This prevents context
+leakage — a company researched early in a batch can't "bleed" into a later one through
+accumulated context. It also means errors are isolated: one failed lookup doesn't
+corrupt the next.
+
+### Skills live in `.claude/skills/` — not in Python
+The skill files (SKILL.md) are the source of truth for the research prompt and output
+schema. Both interfaces read from the same file: Claude Code invokes it interactively;
+`lookup.py` loads it as a prompt template for batch runs. A single edit to SKILL.md
+propagates to both. No duplication.
+
+### Progressive disclosure for reference files
+The skill instructs Claude to load `field-definitions.md` and `source-priority.md`
+*only when uncertain* about a specific field — not upfront every time. This avoids
+burning tokens on reference material the model already knows well for common fields
+(e.g., `founded_year`, `headquarters`) while still providing a safety net for
+ambiguous cases.
+
+### Null over low-confidence guess
+Every field returns `null` rather than a plausible-sounding but unverified value.
+A null is honest. A wrong value stored in a CSV gets treated as true, shared downstream,
+and is expensive to discover and correct later.
+
+### Flush after every entity
+Both output CSVs are flushed row-by-row immediately after each entity completes
+([lookup.py:344-345](lookup.py#L344-L345)). A mid-run crash — network timeout,
+API error, Ctrl+C — preserves every result written so far. Without this, the output
+buffers wouldn't be written until the process exits cleanly.
+
+### Two output files (clean + sources)
+Keeping source URLs and confidence levels in a separate `_sources.csv` avoids polluting
+the clean output with 3× as many columns. Consumers who want to import or share results
+use the clean file. QA and verification use the sources file.
+
+### Concurrency default of 5, not 10 or 20
+`web_search` and `web_fetch` are server-side tools: all searching happens inside a single
+API call, not across multiple round-trips. Each entity therefore makes 1–2 API calls total.
+At high concurrency those calls are still token-heavy, and many simultaneous large requests
+hit Anthropic rate limits (429). At 20 concurrent workers, a mis-specified input CSV could
+exhaust significant API budget before you can interrupt the run. 5 is conservative enough
+to rarely rate-limit while still being fast: 50 companies completes in ~7 minutes.
+
+### Sequential mode (`--concurrency 1`) with inter-entity delay
+When debugging or running on a trial API key with tight per-minute limits, sequential
+mode makes logs readable and prevents rate limits entirely. The `--delay` flag (default
+1 second) adds breathing room between entities. Set `--delay 0` to remove it.
+
+### `read_file` restricted to `.claude/skills/`
+The client-side `read_file` tool ([lookup.py:165-184](lookup.py#L165-L184)) whitelists
+only the skills directory. The model can load its own reference documents but cannot
+read arbitrary filesystem paths — preventing accidental exposure of credentials, configs,
+or other local files if the model is ever prompted adversarially through a web page it fetches.
+
+### Cost gate before any API call
+The CLI always prints an estimate and requires confirmation before calling the API
+([lookup.py:565-587](lookup.py#L565-L587)). This makes cost visible and intentional.
+`--yes` disables it for CI. `--max-entities` provides a hard cap as a secondary guard.
+
+### Python as orchestrator, not an LLM
+
+The batch runner uses Python to orchestrate the research loop rather than an LLM
+orchestrator that spawns subagents per entity. This was a deliberate choice:
+
+**Why Python wins for this workload:**
+- **Zero orchestration cost** — Python loops are free; an LLM orchestrator burns tokens deciding what to do next
+- **Deterministic** — every entity in the CSV gets researched exactly once; an LLM orchestrator might skip, reorder, or decide 95/100 is "good enough"
+- **Crash durability** — Python controls flush timing precisely; state in an LLM orchestrator's context window is lost on crash
+- **Predictable cost** — the pre-run estimate is only possible because Python knows the entity count before any API call; an LLM orchestrator can spawn unpredictably
+- **Explicit error handling** — Python catches exceptions, writes error rows, and continues without ambiguity
+
+**Where an LLM orchestrator would win:**
+- The task requires adaptive planning (discovering *what* to research, not just *how*)
+- Cross-entity reasoning matters (e.g., "these 3 companies share the same investors")
+- The input is natural language rather than a structured list
+
+**The middle ground — two-phase pipeline:**
+The right answer is to split responsibility: a lightweight LLM discovery agent handles
+the open-ended "find me candidates" phase and produces a CSV; the Python orchestrator
+handles the deterministic "research each entity in depth" phase. This keeps Python's
+guarantees where they matter while adding LLM flexibility where it's needed.
+Both skills now implement this:
+- Health systems: `--discover --state XX` seeds from CMS public data
+- Vendors: `--discover-query "..."` seeds via the `discovering-health-it-competitors` skill
+
+---
+
 ## How to Run
 
 ```bash
@@ -102,7 +213,12 @@ pip install -r requirements.txt
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Profile health IT vendors
+# Discover competitors via natural language, then profile them (two-phase, one command)
+python lookup.py --skill researching-health-it-vendor \
+  --discover-query "AI scribe competitors to Nuance" \
+  --output results.csv
+
+# Profile vendors from a known list
 python lookup.py --skill researching-health-it-vendor --input sample_vendors.csv --output results.csv
 
 # Profile health systems from a list
@@ -118,9 +234,24 @@ python lookup.py --skill researching-health-it-vendor --input vendors.csv --outp
 python lookup.py --skill researching-health-it-vendor --input vendors.csv --output results.csv --yes
 ```
 
-### Single company via Claude Code
+### Discover competitors via Claude Code (conversational)
 
-Open Claude Code in this project and invoke a skill directly:
+Open Claude Code in this project and use the discovery agent to build a list interactively:
+
+```
+Find me AI scribe competitors to Nuance
+```
+
+The agent will propose a list, let you refine it ("remove Nuance itself", "add Suki",
+"only keep Series B+"), then save `discovered_competitors.csv`. Follow up with:
+
+```bash
+python lookup.py --skill researching-health-it-vendor \
+  --input discovered_competitors.csv \
+  --output results.csv
+```
+
+### Profile a single company or health system via Claude Code
 
 ```
 Use the researching-health-it-vendor skill to profile Abridge
@@ -135,8 +266,9 @@ Use the researching-health-system skill to profile Mayo Clinic
 | Flag | Default | Description |
 |---|---|---|
 | `--skill` | _(required)_ | `researching-health-it-vendor` or `researching-health-system` |
-| `--input` | — | Input CSV path. Must have an `entity_name` column. Not required with `--discover`. |
+| `--input` | — | Input CSV path. Must have an `entity_name` column. Not required with `--discover` or `--discover-query`. |
 | `--output` | _(required)_ | Clean output CSV path. A `_sources.csv` is auto-written alongside it. |
+| `--discover-query` | — | Vendor skill only. Natural language query to discover companies via LLM, then research them. E.g. `"AI scribe competitors to Nuance"`. |
 | `--discover` | false | Health-system skill only. Seed entity list from CMS Hospital General Information. |
 | `--state` | — | Two-letter state code for `--discover` (e.g. `CA`, `NY`). |
 | `--model` | `claude-sonnet-4-6` | Anthropic model name. Override via `ANTHROPIC_MODEL` env var. |
@@ -242,9 +374,42 @@ See `.claude/skills/*/references/source-priority.md` for field-by-field source g
 
 ## Discovery Mode
 
+Both skills support a discovery phase that seeds the entity list without requiring
+a pre-built CSV.
+
+### Vendor discovery — LLM-powered (`--discover-query`)
+
+Accepts a natural language query and uses the `discovering-health-it-competitors`
+skill to find candidate companies via web search:
+
+```bash
+python lookup.py \
+  --skill researching-health-it-vendor \
+  --discover-query "Epic-integrated RCM vendors that have raised Series B+" \
+  --output results.csv \
+  --max-entities 10    # recommended for first runs
+```
+
+The discovery phase runs first (~30–60 seconds), prints the discovered company list
+and a brief rationale, then flows immediately into the full research pipeline. The
+cost gate covers both phases.
+
+Discovery sources: CB Insights market maps, KLAS rankings, HIMSS exhibitor lists,
+Crunchbase category searches, Rock Health reports, analyst roundups.
+
+**Alternatively, use the Claude Code UI for interactive refinement** — the
+`health-it-vendor-discoverer` agent lets you refine the list before committing
+to a full research run.
+
+### Health system discovery — CMS public data (`--discover --state`)
+
 `--discover --state XX` downloads the CMS Hospital General Information dataset
 (~6,000 hospitals, publicly available) and filters to the requested state, then
 feeds those hospital names into the research loop.
+
+```bash
+python lookup.py --skill researching-health-system --discover --state CA --output ca_results.csv
+```
 
 This enables prospecting an entire state's hospital landscape without maintaining
 your own contact list — no equivalent free tool exists for this.
@@ -278,11 +443,12 @@ Use `--yes` to skip the prompt in CI or scripted workflows.
 | Phase | Input tokens | Output tokens |
 |---|---|---|
 | Initial research prompt | ~800 | — |
-| Per `web_search` result (avg) | ~3,000 | ~150 |
-| Per `web_fetch` page (avg) | ~8,000–15,000 | ~150 |
+| Per `web_search` result (avg) | ~3,000 | — |
+| Per `web_fetch` page (avg) | ~8,000–15,000 | — |
 | Final structured JSON response | — | ~1,500 |
 
-**Typical profile:** ~6–8 web searches, ~2–4 web fetches, ~8–10 total rounds.
+**Typical profile:** ~6–8 web searches, ~2–4 web fetches, all within 1–2 API calls
+(server-side tools run inside the API call; no client round-trips per tool use).
 
 ### Estimated cost at scale
 

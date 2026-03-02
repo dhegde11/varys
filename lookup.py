@@ -38,6 +38,16 @@ from pathlib import Path
 import yaml
 from anthropic import AsyncAnthropic
 
+# Load .env file if present (so ANTHROPIC_API_KEY doesn't need to be exported manually)
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            if not os.environ.get(_k.strip()):
+                os.environ[_k.strip()] = _v.strip()
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -134,7 +144,7 @@ def load_skill(skill_name: str) -> Skill:
     return Skill(
         name=meta["name"],
         description=meta.get("description", ""),
-        mode=meta["mode"],
+        mode=meta.get("mode", "vendor"),
         max_tool_rounds=meta.get("max_tool_rounds", 12),
         prompt_template=prompt_body,
     )
@@ -208,6 +218,59 @@ READ_FILE_TOOL = {
 }
 
 
+async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
+    """
+    Call the Anthropic Messages API with the discovering-health-it-competitors
+    skill to build a company list from a natural language query.
+
+    One-shot (not iterative) — runs a single agentic loop and parses the JSON
+    list of company names from the response. Returns a plain list of strings
+    ready to feed into the research pipeline.
+    """
+    skill = load_skill("discovering-health-it-competitors")
+    prompt = skill.prompt_template.format(query=query)
+    client = AsyncAnthropic(timeout=600.0)
+    messages = [{"role": "user", "content": prompt}]
+    tools = [
+        {"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
+        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 3},
+        {"type": "code_execution_20250522", "name": "code_execution"},
+    ]
+
+    for _ in range(skill.max_tool_rounds):
+        response = await client.messages.create(
+            model=model,
+            max_tokens=2048,
+            tools=tools,
+            messages=messages,
+        )
+
+        if response.stop_reason == "end_turn":
+            text = next(
+                (b.text for b in response.content if hasattr(b, "text")),
+                None,
+            )
+            if not text:
+                raise RuntimeError("Discovery: end_turn but no text block in response")
+            data = parse_json_response(text, query)
+            companies = data.get("companies", [])
+            if not companies:
+                raise ValueError("Discovery returned an empty company list")
+            rationale = data.get("rationale", "")
+            if rationale:
+                print(f"  {rationale[:140]}{'...' if len(rationale) > 140 else ''}")
+            return [c.strip() for c in companies if c.strip()]
+
+        messages.append({"role": "assistant", "content": response.content})
+        # web_search, web_fetch, and code_execution are server-side: the API
+        # executes them automatically and embeds results as server_tool_use blocks.
+        # No client-side tool_result handling is needed for discovery.
+
+    raise RuntimeError(
+        f"Discovery: reached {skill.max_tool_rounds} tool rounds without end_turn"
+    )
+
+
 async def research_entity_async(
     client: AsyncAnthropic, entity_name: str, skill: Skill, model: str
 ) -> dict:
@@ -225,18 +288,23 @@ async def research_entity_async(
     prompt = skill.prompt_template.format(entity=entity_name)
     messages = [{"role": "user", "content": prompt}]
     tools = [
-        {"type": "web_search_20260209", "name": "web_search"},
-        {"type": "web_fetch_20260209",  "name": "web_fetch"},
+        {"type": "web_search_20260209", "name": "web_search", "max_uses": 3},
+        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2},
+        {"type": "code_execution_20250522", "name": "code_execution"},
         READ_FILE_TOOL,
     ]
 
-    for _ in range(skill.max_tool_rounds):
+    for round_num in range(skill.max_tool_rounds):
+        print(f"  [round {round_num+1}] calling API...", flush=True)
         response = await client.messages.create(
             model=model,
             max_tokens=4096,
             tools=tools,
             messages=messages,
         )
+
+        block_types = [getattr(b, "type", "?") for b in response.content]
+        print(f"  [round {round_num+1}] stop_reason={response.stop_reason} blocks={block_types}", flush=True)
 
         if response.stop_reason == "end_turn":
             text = next(
@@ -249,38 +317,82 @@ async def research_entity_async(
 
         messages.append({"role": "assistant", "content": response.content})
 
-        # Build tool results: server-side (web_search/web_fetch) are returned by
-        # Anthropic in tool_result blocks; read_file is executed client-side here.
-        server_results = {
-            b.tool_use_id: (b.content if hasattr(b, "content") else "")
-            for b in response.content
-            if hasattr(b, "type") and b.type == "tool_result"
-        }
-
+        # web_search, web_fetch, and code_execution are server-side: the API runs
+        # them automatically (server_tool_use blocks). read_file is client-side:
+        # it uses tool_use blocks and requires the client to execute and return results.
         tool_results = []
         for b in response.content:
-            if not (hasattr(b, "type") and b.type == "tool_use"):
-                continue
-
-            if b.name == "read_file":
-                # Client-side execution — read the local reference file
-                content = _execute_read_file(b.input.get("path", ""))
-            else:
-                # Server-side result already provided by Anthropic
-                content = server_results.get(b.id, "")
-
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": b.id,
-                "content": content,
-            })
-
+            if getattr(b, "type", None) == "tool_use" and getattr(b, "name", None) == "read_file":
+                path = (b.input or {}).get("path", "")
+                content = _execute_read_file(path)
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": b.id,
+                    "content": content,
+                })
         if tool_results:
             messages.append({"role": "user", "content": tool_results})
 
     raise RuntimeError(
         f"Reached {skill.max_tool_rounds} tool rounds without end_turn"
     )
+
+
+# ---------------------------------------------------------------------------
+# Sequential runner — shares one event loop / client across all entities
+# ---------------------------------------------------------------------------
+
+async def _run_sequential(
+    entities: list[str],
+    skill: "Skill",
+    model: str,
+    delay: float,
+    clean_writer,
+    sources_writer,
+    clean_f,
+    src_f,
+) -> tuple[int, int]:
+    """
+    Run entities one at a time, sharing a single AsyncAnthropic client and
+    event loop so the httpx connection pool is never closed mid-run.
+    """
+    client = AsyncAnthropic(timeout=600.0)
+    fields = SKILL_FIELDS[skill.name]
+    total = len(entities)
+    success_count = 0
+    error_count = 0
+
+    for i, entity_name in enumerate(entities, 1):
+        label = f"[{i}/{total}] {entity_name} ... "
+        print(label, end="", flush=True)
+
+        try:
+            data = await research_entity_async(client, entity_name, skill, model)
+            sources_row = profile_to_sources_row(data, fields)
+            clean_row   = to_clean_row(sources_row, fields)
+
+            clean_writer.writerow(clean_row)
+            sources_writer.writerow(sources_row)
+            clean_f.flush()
+            src_f.flush()
+
+            _print_summary("", clean_row, skill.mode)
+            success_count += 1
+
+        except Exception as e:
+            print(f"ERROR: {e}")
+            clean_writer.writerow({"entity_name": entity_name})
+            sources_writer.writerow(
+                {"entity_name": entity_name, "research_notes": f"ERROR: {e}"}
+            )
+            clean_f.flush()
+            src_f.flush()
+            error_count += 1
+
+        if i < total and delay > 0:
+            await asyncio.sleep(delay)
+
+    return success_count, error_count
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +414,7 @@ async def _run_batch(
     Results are written to CSV as each entity completes, so a mid-run crash
     preserves all work done up to that point.
     """
-    client = AsyncAnthropic()
+    client = AsyncAnthropic(timeout=600.0)
     sem = asyncio.Semaphore(concurrency)
     total = len(entities)
     success_count = 0
@@ -509,6 +621,16 @@ def main():
         help="Cap the entity list to this many entries. Useful as a cost safety limit.",
     )
     parser.add_argument(
+        "--discover-query",
+        dest="discover_query",
+        help=(
+            "Natural language query to discover vendors via LLM "
+            "(vendor skill only). E.g. 'AI scribe competitors to Nuance'. "
+            "Replaces --input. Runs a lightweight discovery pass, then "
+            "feeds the resulting company list into the full research pipeline."
+        ),
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Skip the cost confirmation prompt (for CI / scripted use).",
@@ -528,8 +650,16 @@ def main():
         print("ERROR: --discover requires --state (e.g. --state CA).", file=sys.stderr)
         sys.exit(1)
 
-    if not args.discover and not args.input:
-        print("ERROR: --input is required unless using --discover.", file=sys.stderr)
+    if args.discover_query and args.skill != "researching-health-it-vendor":
+        print("ERROR: --discover-query is only available with --skill researching-health-it-vendor.", file=sys.stderr)
+        sys.exit(1)
+
+    if args.discover and args.discover_query:
+        print("ERROR: Cannot use both --discover and --discover-query.", file=sys.stderr)
+        sys.exit(1)
+
+    if not args.discover and not args.discover_query and not args.input:
+        print("ERROR: --input is required unless using --discover or --discover-query.", file=sys.stderr)
         sys.exit(1)
 
     # Load skill
@@ -538,6 +668,12 @@ def main():
     # Build entity list
     if args.discover:
         entities = discover_health_systems(args.state)
+    elif args.discover_query:
+        print(f"Discovering vendors for: \"{args.discover_query}\" ...")
+        entities = asyncio.run(discover_vendors_via_llm(args.discover_query, args.model))
+        preview = ", ".join(entities[:8])
+        suffix = f" ... (+{len(entities) - 8} more)" if len(entities) > 8 else ""
+        print(f"Discovered {len(entities)} companies: {preview}{suffix}\n")
     else:
         input_path = Path(args.input)
         if not input_path.exists():
@@ -618,39 +754,15 @@ def main():
 
         else:
             # Sequential path — one entity at a time with optional delay.
-            client = AsyncAnthropic()
-
-            for i, entity_name in enumerate(entities, 1):
-                label = f"[{i}/{len(entities)}] {entity_name} ... "
-                print(label, end="", flush=True)
-
-                try:
-                    data = asyncio.run(
-                        research_entity_async(client, entity_name, skill, args.model)
-                    )
-                    sources_row = profile_to_sources_row(data, fields)
-                    clean_row   = to_clean_row(sources_row, fields)
-
-                    clean_writer.writerow(clean_row)
-                    sources_writer.writerow(sources_row)
-                    clean_f.flush()
-                    src_f.flush()
-
-                    _print_summary("", clean_row, skill.mode)
-                    success_count += 1
-
-                except Exception as e:
-                    print(f"ERROR: {e}")
-                    clean_writer.writerow({"entity_name": entity_name})
-                    sources_writer.writerow(
-                        {"entity_name": entity_name, "research_notes": f"ERROR: {e}"}
-                    )
-                    clean_f.flush()
-                    src_f.flush()
-                    error_count += 1
-
-                if i < len(entities) and args.delay > 0 and args.concurrency == 1:
-                    time.sleep(args.delay)
+            # Run inside a single asyncio.run() so the AsyncAnthropic client
+            # and its httpx session share one event loop for the entire run.
+            print(f"Running {len(entities)} entities sequentially (delay={args.delay}s)...\n")
+            success_count, error_count = asyncio.run(
+                _run_sequential(
+                    entities, skill, args.model, args.delay,
+                    clean_writer, sources_writer, clean_f, src_f,
+                )
+            )
 
     print(f"\nDone. {success_count} succeeded, {error_count} failed.")
     print(f"Clean results:   {output_path}")

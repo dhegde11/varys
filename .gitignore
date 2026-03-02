@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Output files (don't commit research results)
+results*.csv
+*_sources.csv
+*.sqlite
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store

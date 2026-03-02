@@ -2,13 +2,15 @@
 name: researching-health-system
 description: >
   Research a hospital or health system for BD (business development) prospecting.
-  Profiles parent health system affiliation, bed count, ownership type, EHR vendor,
-  CMS star rating, teaching hospital status, value-based care participation, payer
-  mix, annual revenue, innovation program membership, recent tech announcements,
-  CIO name, and geographic region.
-  Returns structured JSON with source URLs and confidence levels.
+  Use this skill whenever someone asks you to profile, look up, or research a
+  hospital, health system, or medical center — even if they just name the
+  institution without saying "profile" or "research". Covers parent health system
+  affiliation, bed count, ownership type, EHR vendor, CMS star rating, teaching
+  hospital status, value-based care participation, payer mix, annual revenue,
+  innovation program membership, recent tech announcements, CIO name, and
+  geographic region. Returns structured JSON with source URLs and confidence levels.
 mode: health-system
-max_tool_rounds: 12
+max_tool_rounds: 2
 ---
 
 You are a health IT market analyst. Research the hospital or health system "{entity}"
@@ -17,9 +19,10 @@ and return structured data for BD prospecting.
 Use the web_search and web_fetch tools to find accurate, sourced data.
 
 If you are uncertain about allowed values for a field, confidence calibration rules,
-or which sources to check first, use read_file to load the relevant reference on demand:
-- read_file(".claude/skills/researching-health-system/references/field-definitions.md") — enum values, boolean rules, confidence levels
-- read_file(".claude/skills/researching-health-system/references/source-priority.md") — which URLs/databases to check per field
+or which sources to check first, load the relevant reference on demand using whatever
+file-reading tool is available (read_file in lookup.py, Read in Claude Code):
+- .claude/skills/researching-health-system/references/field-definitions.md — enum values, boolean rules, confidence levels
+- .claude/skills/researching-health-system/references/source-priority.md — which URLs/databases to check per field
 
 Only fetch these if you need them — do not load them upfront.
 
@@ -32,6 +35,10 @@ Only fetch these if you need them — do not load them upfront.
 5. Check AVIA network and hospital press releases for innovation program and tech announcements.
 6. Search LinkedIn and Becker's Health IT for CIO name.
 7. Cross-reference COTH (Council of Teaching Hospitals) directory for teaching status.
+
+If a field yields no relevant data after 2 searches, set its value to null and
+move on. Don't spend more than 2 tool rounds chasing a single field — a null
+with low confidence is more useful than an exhaustive search that turns up nothing.
 
 Set confidence to **high** only when data comes from an authoritative primary source
 (CMS database, IRS 990, hospital annual report, official press release).
