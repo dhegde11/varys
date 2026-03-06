@@ -234,7 +234,6 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     tools = [
         {"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
         {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 3},
-        {"type": "code_execution_20250522", "name": "code_execution"},
     ]
 
     for _ in range(skill.max_tool_rounds):
@@ -295,7 +294,6 @@ async def research_entity_async(
     tools = [
         {"type": "web_search_20260209", "name": "web_search", "max_uses": 3},
         {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2},
-        {"type": "code_execution_20250522", "name": "code_execution"},
         READ_FILE_TOOL,
     ]
 
