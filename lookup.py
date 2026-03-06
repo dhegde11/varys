@@ -237,12 +237,14 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     ]
 
     for _ in range(skill.max_tool_rounds):
-        response = await client.messages.create(
+        async with client.messages.stream(
             model=model,
             max_tokens=2048,
+            thinking={"type": "adaptive"},
             tools=tools,
             messages=messages,
-        )
+        ) as stream:
+            response = await stream.get_final_message()
 
         if response.stop_reason == "end_turn":
             text = next(
@@ -299,12 +301,14 @@ async def research_entity_async(
 
     for round_num in range(skill.max_tool_rounds):
         print(f"  [round {round_num+1}] calling API...", flush=True)
-        response = await client.messages.create(
+        async with client.messages.stream(
             model=model,
             max_tokens=4096,
+            thinking={"type": "adaptive"},
             tools=tools,
             messages=messages,
-        )
+        ) as stream:
+            response = await stream.get_final_message()
 
         block_types = [getattr(b, "type", "?") for b in response.content]
         print(f"  [round {round_num+1}] stop_reason={response.stop_reason} blocks={block_types}", flush=True)

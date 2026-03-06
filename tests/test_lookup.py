@@ -252,14 +252,12 @@ class TestPauseTurnHandling:
         )
 
     def _make_pause_response(self):
-        """A response with stop_reason='pause_turn' (server tools hit limit)."""
         r = MagicMock()
         r.stop_reason = "pause_turn"
         r.content = [MagicMock(type="server_tool_use")]
         return r
 
     def _make_end_response(self):
-        """A response with stop_reason='end_turn' and a valid JSON text block."""
         text_block = MagicMock()
         text_block.type = "text"
         text_block.text = '{"entity_name": "Acme", "research_notes": "ok"}'
@@ -268,39 +266,52 @@ class TestPauseTurnHandling:
         r.content = [text_block]
         return r
 
+    def _make_stream_ctx(self, final_response):
+        """
+        Build an async context manager mock that returns final_response
+        from .get_final_message().
+        """
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        ctx.get_final_message = AsyncMock(return_value=final_response)
+        return ctx
+
     def test_pause_turn_causes_retry_without_user_message(self):
         """
         When API returns pause_turn, the loop retries with messages ending in
         'assistant' (no extra user message). The second call gets end_turn.
-        Total: 2 create() calls.
+        Total: 2 stream() calls.
         """
         from lookup import research_entity_async
 
         skill = self._make_skill()
         client = MagicMock()
-        client.messages.create = AsyncMock(
-            side_effect=[self._make_pause_response(), self._make_end_response()]
-        )
+
+        pause_ctx = self._make_stream_ctx(self._make_pause_response())
+        end_ctx = self._make_stream_ctx(self._make_end_response())
+        client.messages.stream = MagicMock(side_effect=[pause_ctx, end_ctx])
 
         result = asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        assert client.messages.create.call_count == 2
+        assert client.messages.stream.call_count == 2
         assert result["entity_name"] == "Acme"
 
-        # On the second call, the messages list must end with the assistant
-        # message from the pause_turn round (no extra user/tool_result appended).
-        second_call_messages = client.messages.create.call_args_list[1][1]["messages"]
+        # On the second call, messages must end with the assistant role
+        # (no extra user/tool_result appended after pause_turn)
+        second_call_messages = client.messages.stream.call_args_list[1][1]["messages"]
         assert second_call_messages[-1]["role"] == "assistant"
 
     def test_end_turn_on_first_call_returns_immediately(self):
-        """When first response is end_turn, create() is called exactly once."""
+        """When first response is end_turn, stream() is called exactly once."""
         from lookup import research_entity_async
 
         skill = self._make_skill()
         client = MagicMock()
-        client.messages.create = AsyncMock(side_effect=[self._make_end_response()])
+        end_ctx = self._make_stream_ctx(self._make_end_response())
+        client.messages.stream = MagicMock(side_effect=[end_ctx])
 
         result = asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        assert client.messages.create.call_count == 1
+        assert client.messages.stream.call_count == 1
         assert result["entity_name"] == "Acme"
