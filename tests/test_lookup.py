@@ -315,3 +315,145 @@ class TestPauseTurnHandling:
 
         assert client.messages.stream.call_count == 1
         assert result["entity_name"] == "Acme"
+
+
+# ---------------------------------------------------------------------------
+# TestCachedPromptStructure
+# ---------------------------------------------------------------------------
+
+class TestCachedPromptStructure:
+    """Verify the cached/dynamic content block split is built correctly."""
+
+    def test_static_block_uses_entity_placeholder_not_actual_name(self):
+        """
+        The static block (block 0) must contain [ENTITY] not the actual entity name,
+        ensuring the cached text is identical across entities.
+        """
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+        from lookup import research_entity_async, Skill
+
+        skill = Skill(
+            name="researching-health-it-vendor",
+            description="",
+            mode="vendor",
+            max_tool_rounds=5,
+            prompt_template="Research {entity}. Fields: foo.",
+        )
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = '{"entity_name": "Acme", "research_notes": "ok"}'
+        end_response = MagicMock()
+        end_response.stop_reason = "end_turn"
+        end_response.content = [text_block]
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        ctx.get_final_message = AsyncMock(return_value=end_response)
+        client = MagicMock()
+        client.messages.stream = MagicMock(return_value=ctx)
+
+        asyncio.run(research_entity_async(client, "Acme Corp", skill, "claude-sonnet-4-6"))
+
+        content = client.messages.stream.call_args_list[0][1]["messages"][0]["content"]
+        static_text = content[0]["text"]
+
+        # Static block contains the placeholder, not the real entity name
+        assert "[ENTITY]" in static_text
+        assert "Acme Corp" not in static_text
+        # Original {entity} placeholder fully replaced
+        assert "{entity}" not in static_text
+
+    def test_two_entities_produce_identical_static_blocks(self):
+        """
+        Two different entities must produce the same static block text,
+        which is the prerequisite for effective prompt caching.
+        """
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+        from lookup import research_entity_async, Skill
+
+        skill = Skill(
+            name="researching-health-it-vendor",
+            description="",
+            mode="vendor",
+            max_tool_rounds=5,
+            prompt_template="Research {entity}. Fields: foo.",
+        )
+
+        def _make_ctx():
+            text_block = MagicMock()
+            text_block.type = "text"
+            text_block.text = '{"entity_name": "X", "research_notes": "ok"}'
+            end_response = MagicMock()
+            end_response.stop_reason = "end_turn"
+            end_response.content = [text_block]
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=ctx)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            ctx.get_final_message = AsyncMock(return_value=end_response)
+            return ctx
+
+        client1 = MagicMock()
+        client1.messages.stream = MagicMock(return_value=_make_ctx())
+        client2 = MagicMock()
+        client2.messages.stream = MagicMock(return_value=_make_ctx())
+
+        asyncio.run(research_entity_async(client1, "Company A", skill, "claude-sonnet-4-6"))
+        asyncio.run(research_entity_async(client2, "Company B", skill, "claude-sonnet-4-6"))
+
+        static_a = client1.messages.stream.call_args_list[0][1]["messages"][0]["content"][0]["text"]
+        static_b = client2.messages.stream.call_args_list[0][1]["messages"][0]["content"][0]["text"]
+
+        assert static_a == static_b  # cacheable: identical static blocks
+
+    def test_research_entity_async_builds_cached_messages(self):
+        """research_entity_async builds a two-block user message with cache_control on block 0."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+        from lookup import research_entity_async, Skill
+
+        skill = Skill(
+            name="researching-health-it-vendor",
+            description="",
+            mode="vendor",
+            max_tool_rounds=5,
+            prompt_template="Research {entity}. Fields: foo.",
+        )
+
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = '{"entity_name": "Acme", "research_notes": "ok"}'
+        end_response = MagicMock()
+        end_response.stop_reason = "end_turn"
+        end_response.content = [text_block]
+
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        ctx.get_final_message = AsyncMock(return_value=end_response)
+
+        client = MagicMock()
+        client.messages.stream = MagicMock(return_value=ctx)
+
+        asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
+
+        # Inspect the messages passed to stream()
+        call_kwargs = client.messages.stream.call_args_list[0][1]
+        first_message = call_kwargs["messages"][0]
+
+        assert first_message["role"] == "user"
+        content = first_message["content"]
+        assert isinstance(content, list)
+        assert len(content) == 2
+
+        # Block 0: static, cached
+        assert content[0]["type"] == "text"
+        assert content[0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+        assert "[ENTITY]" in content[0]["text"]
+        assert "{entity}" not in content[0]["text"]
+
+        # Block 1: dynamic, no cache_control
+        assert content[1]["type"] == "text"
+        assert "Acme" in content[1]["text"]
+        assert "cache_control" not in content[1]

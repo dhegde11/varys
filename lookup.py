@@ -268,8 +268,8 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
         if response.stop_reason == "pause_turn":
             continue
 
-        # web_search, web_fetch, and code_execution are server-side: the API
-        # executes them automatically and embeds results as server_tool_use blocks.
+        # web_search and web_fetch are server-side: the API executes them automatically
+        # and embeds results as server_tool_use blocks.
         # No client-side tool_result handling is needed for discovery.
 
     raise RuntimeError(
@@ -291,8 +291,26 @@ async def research_entity_async(
     Progressive disclosure: the agent reads reference files (field definitions,
     source priority) only when it decides it needs them — not upfront every time.
     """
-    prompt = skill.prompt_template.format(entity=entity_name)
-    messages = [{"role": "user", "content": prompt}]
+    # Split the skill template into a cacheable static block (same for all entities)
+    # and a dynamic block (entity-specific). The static block is cached for 1 hour
+    # by the API after the first request — subsequent entities pay ~10% of normal cost.
+    static_text = skill.prompt_template.replace("{entity}", "[ENTITY]")
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": static_text,
+                    "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                },
+                {
+                    "type": "text",
+                    "text": f'Research: "{entity_name}"',
+                },
+            ],
+        }
+    ]
     tools = [
         {"type": "web_search_20260209", "name": "web_search", "max_uses": 3},
         {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2},
@@ -329,9 +347,9 @@ async def research_entity_async(
         if response.stop_reason == "pause_turn":
             continue
 
-        # web_search, web_fetch, and code_execution are server-side: the API runs
-        # them automatically (server_tool_use blocks). read_file is client-side:
-        # it uses tool_use blocks and requires the client to execute and return results.
+        # web_search and web_fetch are server-side: the API runs them automatically
+        # (server_tool_use blocks). read_file is client-side: it uses tool_use blocks
+        # and requires the client to execute and return results.
         tool_results = []
         for b in response.content:
             if getattr(b, "type", None) == "tool_use" and getattr(b, "name", None) == "read_file":
