@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from lookup import (
     SKILL_FIELDS,
+    SKILL_OUTPUT_SCHEMAS,
     _execute_read_file,
     parse_json_response,
     profile_to_sources_row,
@@ -457,3 +458,69 @@ class TestCachedPromptStructure:
         assert content[1]["type"] == "text"
         assert "Acme" in content[1]["text"]
         assert "cache_control" not in content[1]
+
+
+# ---------------------------------------------------------------------------
+# TestOutputSchemas
+# ---------------------------------------------------------------------------
+
+class TestOutputSchemas:
+    def test_vendor_schema_has_all_fields(self):
+        schema = SKILL_OUTPUT_SCHEMAS["researching-health-it-vendor"]
+        assert schema["type"] == "object"
+        assert schema["additionalProperties"] is False
+        for field in SKILL_FIELDS["researching-health-it-vendor"][1:]:
+            assert field in schema["properties"], f"Missing field: {field}"
+        assert "entity_name" in schema["properties"]
+        assert "research_notes" in schema["properties"]
+
+    def test_health_system_schema_has_all_fields(self):
+        schema = SKILL_OUTPUT_SCHEMAS["researching-health-system"]
+        assert schema["additionalProperties"] is False
+        for field in SKILL_FIELDS["researching-health-system"][1:]:
+            assert field in schema["properties"], f"Missing field: {field}"
+
+    def test_field_value_has_required_properties(self):
+        schema = SKILL_OUTPUT_SCHEMAS["researching-health-it-vendor"]
+        fv = schema["$defs"]["FieldValue"]
+        assert "value" in fv["properties"]
+        assert "source_url" in fv["properties"]
+        assert "confidence" in fv["properties"]
+        assert fv["additionalProperties"] is False
+
+    def test_output_config_passed_to_stream(self):
+        """research_entity_async passes output_config with the correct schema to stream()."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+        from lookup import research_entity_async, Skill
+
+        skill = Skill(
+            name="researching-health-it-vendor",
+            description="",
+            mode="vendor",
+            max_tool_rounds=5,
+            prompt_template="Research {entity}.",
+        )
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = '{"entity_name": "Acme", "research_notes": "ok"}'
+        end_response = MagicMock()
+        end_response.stop_reason = "end_turn"
+        end_response.content = [text_block]
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+        ctx.get_final_message = AsyncMock(return_value=end_response)
+        client = MagicMock()
+        client.messages.stream = MagicMock(return_value=ctx)
+
+        asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
+
+        call_kwargs = client.messages.stream.call_args_list[0][1]
+        assert "output_config" in call_kwargs
+        fmt = call_kwargs["output_config"]["format"]
+        assert fmt["type"] == "json_schema"
+        schema = fmt["schema"]
+        assert schema["type"] == "object"
+        assert "product_category" in schema["properties"]
+        assert "FieldValue" in schema["$defs"]

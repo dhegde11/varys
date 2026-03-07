@@ -90,6 +90,51 @@ SKILL_FIELDS = {
     ],
 }
 
+# ---------------------------------------------------------------------------
+# Structured output schemas — enforced via output_config on each API call.
+# Guarantees valid JSON at end_turn so we can use json.loads() safely.
+# ---------------------------------------------------------------------------
+
+_FIELD_VALUE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "value": {
+            "anyOf": [
+                {"type": "string"},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "null"},
+            ]
+        },
+        "source_url": {"type": ["string", "null"]},
+        "confidence": {"type": ["string", "null"]},
+    },
+    "required": ["value", "source_url", "confidence"],
+    "additionalProperties": False,
+}
+
+
+def _make_output_schema(field_names: list[str]) -> dict:
+    """Build a JSON schema for a research profile with the given field names."""
+    props = {"entity_name": {"type": "string"}}
+    props.update({f: {"$ref": "#/$defs/FieldValue"} for f in field_names})
+    props["research_notes"] = {"type": ["string", "null"]}
+    return {
+        "type": "object",
+        "properties": props,
+        "required": list(props.keys()),
+        "additionalProperties": False,
+        "$defs": {"FieldValue": _FIELD_VALUE_SCHEMA},
+    }
+
+
+# Built once at import time; keyed by skill name
+SKILL_OUTPUT_SCHEMAS = {
+    skill_name: _make_output_schema(fields[1:])  # fields[0] is entity_name, added separately
+    for skill_name, fields in SKILL_FIELDS.items()
+}
+
+
 # Cost estimate constants (rough median per entity, claude-sonnet-4-6 with web tools)
 COST_PER_ENTITY_LOW  = 0.15   # USD
 COST_PER_ENTITY_HIGH = 0.40   # USD
@@ -316,6 +361,7 @@ async def research_entity_async(
         {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2},
         READ_FILE_TOOL,
     ]
+    output_schema = SKILL_OUTPUT_SCHEMAS[skill.name]
 
     for round_num in range(skill.max_tool_rounds):
         print(f"  [round {round_num+1}] calling API...", flush=True)
@@ -325,6 +371,7 @@ async def research_entity_async(
             thinking={"type": "adaptive"},
             tools=tools,
             messages=messages,
+            output_config={"format": {"type": "json_schema", "schema": output_schema}},
         ) as stream:
             response = await stream.get_final_message()
 
@@ -338,7 +385,9 @@ async def research_entity_async(
             )
             if not text:
                 raise RuntimeError("end_turn but no text block in response")
-            return parse_json_response(text, entity_name)
+            data = json.loads(text)
+            data["entity_name"] = entity_name  # always authoritative from the caller
+            return data
 
         messages.append({"role": "assistant", "content": response.content})
 
