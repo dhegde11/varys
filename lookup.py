@@ -287,8 +287,8 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     client = AsyncAnthropic(timeout=600.0)
     messages = [{"role": "user", "content": prompt}]
     tools = [
-        {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
-        {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 3},
+        {"type": "web_search_20260209", "name": "web_search", "max_uses": 5, "allowed_callers": ["direct"]},
+        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 3, "allowed_callers": ["direct"]},
     ]
 
     container_id = None
@@ -370,8 +370,8 @@ async def research_entity_async(
         }
     ]
     tools = [
-        {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
-        {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 2},
+        {"type": "web_search_20260209", "name": "web_search", "max_uses": 3, "allowed_callers": ["direct"]},
+        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2, "allowed_callers": ["direct"]},
         READ_FILE_TOOL,
     ]
     output_schema = SKILL_OUTPUT_SCHEMAS[skill.name]
@@ -642,8 +642,8 @@ async def _run_batches_api(
                 "model": model,
                 "max_tokens": 4096,
                 "tools": [
-                    {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
-                    {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 2},
+                    {"type": "web_search_20260209", "name": "web_search", "max_uses": 3, "allowed_callers": ["direct"]},
+                    {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2, "allowed_callers": ["direct"]},
                 ],
                 "messages": messages,
                 "output_config": {"format": {"type": "json_schema", "schema": output_schema}},
