@@ -256,6 +256,7 @@ class TestPauseTurnHandling:
         r = MagicMock()
         r.stop_reason = "pause_turn"
         r.content = [MagicMock(type="server_tool_use")]
+        r.container = None
         return r
 
     def _make_end_response(self):
@@ -265,56 +266,45 @@ class TestPauseTurnHandling:
         r = MagicMock()
         r.stop_reason = "end_turn"
         r.content = [text_block]
+        r.container = None
         return r
-
-    def _make_stream_ctx(self, final_response):
-        """
-        Build an async context manager mock that returns final_response
-        from .get_final_message().
-        """
-        ctx = MagicMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=False)
-        ctx.get_final_message = AsyncMock(return_value=final_response)
-        return ctx
 
     def test_pause_turn_causes_retry_without_user_message(self):
         """
         When API returns pause_turn, the loop retries with messages ending in
         'assistant' (no extra user message). The second call gets end_turn.
-        Total: 2 stream() calls.
+        Total: 2 create() calls.
         """
         from lookup import research_entity_async
 
         skill = self._make_skill()
         client = MagicMock()
-
-        pause_ctx = self._make_stream_ctx(self._make_pause_response())
-        end_ctx = self._make_stream_ctx(self._make_end_response())
-        client.messages.stream = MagicMock(side_effect=[pause_ctx, end_ctx])
+        client.messages.create = AsyncMock(side_effect=[
+            self._make_pause_response(),
+            self._make_end_response(),
+        ])
 
         result = asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        assert client.messages.stream.call_count == 2
+        assert client.messages.create.call_count == 2
         assert result["entity_name"] == "Acme"
 
         # On the second call, messages must end with the assistant role
         # (no extra user/tool_result appended after pause_turn)
-        second_call_messages = client.messages.stream.call_args_list[1][1]["messages"]
+        second_call_messages = client.messages.create.call_args_list[1][1]["messages"]
         assert second_call_messages[-1]["role"] == "assistant"
 
     def test_end_turn_on_first_call_returns_immediately(self):
-        """When first response is end_turn, stream() is called exactly once."""
+        """When first response is end_turn, create() is called exactly once."""
         from lookup import research_entity_async
 
         skill = self._make_skill()
         client = MagicMock()
-        end_ctx = self._make_stream_ctx(self._make_end_response())
-        client.messages.stream = MagicMock(side_effect=[end_ctx])
+        client.messages.create = AsyncMock(return_value=self._make_end_response())
 
         result = asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        assert client.messages.stream.call_count == 1
+        assert client.messages.create.call_count == 1
         assert result["entity_name"] == "Acme"
 
 
@@ -347,16 +337,13 @@ class TestCachedPromptStructure:
         end_response = MagicMock()
         end_response.stop_reason = "end_turn"
         end_response.content = [text_block]
-        ctx = MagicMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=False)
-        ctx.get_final_message = AsyncMock(return_value=end_response)
+        end_response.container = None
         client = MagicMock()
-        client.messages.stream = MagicMock(return_value=ctx)
+        client.messages.create = AsyncMock(return_value=end_response)
 
         asyncio.run(research_entity_async(client, "Acme Corp", skill, "claude-sonnet-4-6"))
 
-        content = client.messages.stream.call_args_list[0][1]["messages"][0]["content"]
+        content = client.messages.create.call_args_list[0][1]["messages"][0]["content"]
         static_text = content[0]["text"]
 
         # Static block contains the placeholder, not the real entity name
@@ -382,29 +369,26 @@ class TestCachedPromptStructure:
             prompt_template="Research {entity}. Fields: foo.",
         )
 
-        def _make_ctx():
+        def _make_response():
             text_block = MagicMock()
             text_block.type = "text"
             text_block.text = '{"entity_name": "X", "research_notes": "ok"}'
             end_response = MagicMock()
             end_response.stop_reason = "end_turn"
             end_response.content = [text_block]
-            ctx = MagicMock()
-            ctx.__aenter__ = AsyncMock(return_value=ctx)
-            ctx.__aexit__ = AsyncMock(return_value=False)
-            ctx.get_final_message = AsyncMock(return_value=end_response)
-            return ctx
+            end_response.container = None
+            return end_response
 
         client1 = MagicMock()
-        client1.messages.stream = MagicMock(return_value=_make_ctx())
+        client1.messages.create = AsyncMock(return_value=_make_response())
         client2 = MagicMock()
-        client2.messages.stream = MagicMock(return_value=_make_ctx())
+        client2.messages.create = AsyncMock(return_value=_make_response())
 
         asyncio.run(research_entity_async(client1, "Company A", skill, "claude-sonnet-4-6"))
         asyncio.run(research_entity_async(client2, "Company B", skill, "claude-sonnet-4-6"))
 
-        static_a = client1.messages.stream.call_args_list[0][1]["messages"][0]["content"][0]["text"]
-        static_b = client2.messages.stream.call_args_list[0][1]["messages"][0]["content"][0]["text"]
+        static_a = client1.messages.create.call_args_list[0][1]["messages"][0]["content"][0]["text"]
+        static_b = client2.messages.create.call_args_list[0][1]["messages"][0]["content"][0]["text"]
 
         assert static_a == static_b  # cacheable: identical static blocks
 
@@ -428,19 +412,15 @@ class TestCachedPromptStructure:
         end_response = MagicMock()
         end_response.stop_reason = "end_turn"
         end_response.content = [text_block]
-
-        ctx = MagicMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=False)
-        ctx.get_final_message = AsyncMock(return_value=end_response)
+        end_response.container = None
 
         client = MagicMock()
-        client.messages.stream = MagicMock(return_value=ctx)
+        client.messages.create = AsyncMock(return_value=end_response)
 
         asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        # Inspect the messages passed to stream()
-        call_kwargs = client.messages.stream.call_args_list[0][1]
+        # Inspect the messages passed to create()
+        call_kwargs = client.messages.create.call_args_list[0][1]
         first_message = call_kwargs["messages"][0]
 
         assert first_message["role"] == "user"
@@ -488,8 +468,8 @@ class TestOutputSchemas:
         assert "confidence" in fv["properties"]
         assert fv["additionalProperties"] is False
 
-    def test_output_config_passed_to_stream(self):
-        """research_entity_async passes output_config with the correct schema to stream()."""
+    def test_output_config_passed_to_create(self):
+        """research_entity_async passes output_config with the correct schema to create()."""
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
         from lookup import research_entity_async, Skill
@@ -507,16 +487,13 @@ class TestOutputSchemas:
         end_response = MagicMock()
         end_response.stop_reason = "end_turn"
         end_response.content = [text_block]
-        ctx = MagicMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=False)
-        ctx.get_final_message = AsyncMock(return_value=end_response)
+        end_response.container = None
         client = MagicMock()
-        client.messages.stream = MagicMock(return_value=ctx)
+        client.messages.create = AsyncMock(return_value=end_response)
 
         asyncio.run(research_entity_async(client, "Acme", skill, "claude-sonnet-4-6"))
 
-        call_kwargs = client.messages.stream.call_args_list[0][1]
+        call_kwargs = client.messages.create.call_args_list[0][1]
         assert "output_config" in call_kwargs
         fmt = call_kwargs["output_config"]["format"]
         assert fmt["type"] == "json_schema"

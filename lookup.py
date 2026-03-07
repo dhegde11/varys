@@ -34,6 +34,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import yaml
 from anthropic import AsyncAnthropic
@@ -263,6 +264,15 @@ READ_FILE_TOOL = {
 }
 
 
+async def _heartbeat(prefix: str, interval: float = 60.0) -> None:
+    """Print a progress line every `interval` seconds while an API call is in flight."""
+    elapsed = 0
+    while True:
+        await asyncio.sleep(interval)
+        elapsed += interval
+        print(f"  {prefix} | {int(elapsed)}s waiting...", flush=True)
+
+
 async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     """
     Call the Anthropic Messages API with the discovering-health-it-competitors
@@ -277,19 +287,18 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     client = AsyncAnthropic(timeout=600.0)
     messages = [{"role": "user", "content": prompt}]
     tools = [
-        {"type": "web_search_20260209", "name": "web_search", "max_uses": 5},
-        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 3},
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
+        {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 3},
     ]
 
+    container_id = None
     for _ in range(skill.max_tool_rounds):
-        async with client.messages.stream(
-            model=model,
-            max_tokens=2048,
-            thinking={"type": "adaptive"},
-            tools=tools,
-            messages=messages,
-        ) as stream:
-            response = await stream.get_final_message()
+        stream_kwargs = dict(model=model, max_tokens=2048, tools=tools, messages=messages)
+        if container_id:
+            stream_kwargs["container"] = container_id
+        response = await client.messages.create(**stream_kwargs)
+        if response.container:
+            container_id = response.container.id
 
         if response.stop_reason == "end_turn":
             text = next(
@@ -323,7 +332,11 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
 
 
 async def research_entity_async(
-    client: AsyncAnthropic, entity_name: str, skill: Skill, model: str
+    client: AsyncAnthropic, entity_name: str, skill: Skill, model: str,
+    *,
+    entity_idx: int = 1,
+    total: int = 1,
+    run_start: Optional[float] = None,
 ) -> dict:
     """
     Call the Anthropic Messages API with built-in web search/fetch tools and a
@@ -357,26 +370,47 @@ async def research_entity_async(
         }
     ]
     tools = [
-        {"type": "web_search_20260209", "name": "web_search", "max_uses": 3},
-        {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2},
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
+        {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 2},
         READ_FILE_TOOL,
     ]
     output_schema = SKILL_OUTPUT_SCHEMAS[skill.name]
+    container_id = None
+    if run_start is None:
+        run_start = time.time()
 
     for round_num in range(skill.max_tool_rounds):
-        print(f"  [round {round_num+1}] calling API...", flush=True)
-        async with client.messages.stream(
+        elapsed_total = int(time.time() - run_start)
+        print(f"  [{entity_idx}/{total}] {entity_name} | round {round_num+1} | {elapsed_total}s elapsed", flush=True)
+
+        stream_kwargs = dict(
             model=model,
             max_tokens=4096,
-            thinking={"type": "adaptive"},
             tools=tools,
             messages=messages,
             output_config={"format": {"type": "json_schema", "schema": output_schema}},
-        ) as stream:
-            response = await stream.get_final_message()
+        )
+        if container_id:
+            stream_kwargs["container"] = container_id
+
+        heartbeat_prefix = f"[{entity_idx}/{total}] {entity_name} | round {round_num+1}"
+        heartbeat = asyncio.create_task(_heartbeat(heartbeat_prefix))
+        try:
+            # Use create() (not stream()) so response.container is populated,
+            # which is required for multi-round calls when code execution runs.
+            response = await client.messages.create(**stream_kwargs)
+        finally:
+            heartbeat.cancel()
+            try:
+                await heartbeat
+            except asyncio.CancelledError:
+                pass
+
+        if response.container:
+            container_id = response.container.id
 
         block_types = [getattr(b, "type", "?") for b in response.content]
-        print(f"  [round {round_num+1}] stop_reason={response.stop_reason} blocks={block_types}", flush=True)
+        print(f"  [{entity_idx}/{total}] {entity_name} | round {round_num+1} done | stop_reason={response.stop_reason} blocks={block_types}", flush=True)
 
         if response.stop_reason == "end_turn":
             text = next(
@@ -440,13 +474,16 @@ async def _run_sequential(
     total = len(entities)
     success_count = 0
     error_count = 0
+    run_start = time.time()
+    entity_times: list[float] = []
 
     for i, entity_name in enumerate(entities, 1):
-        label = f"[{i}/{total}] {entity_name} ... "
-        print(label, end="", flush=True)
-
+        entity_start = time.time()
         try:
-            data = await research_entity_async(client, entity_name, skill, model)
+            data = await research_entity_async(
+                client, entity_name, skill, model,
+                entity_idx=i, total=total, run_start=run_start,
+            )
             sources_row = profile_to_sources_row(data, fields)
             clean_row   = to_clean_row(sources_row, fields)
 
@@ -455,11 +492,15 @@ async def _run_sequential(
             clean_f.flush()
             src_f.flush()
 
-            _print_summary("", clean_row, skill.mode)
+            entity_times.append(time.time() - entity_start)
+            avg = sum(entity_times) / len(entity_times)
+            remaining_entities = total - i
+            eta = f"~{int(avg * remaining_entities / 60)}m remaining" if remaining_entities else "done"
+            _print_summary(f"[{i}/{total}] {entity_name} | {eta} | ", clean_row, skill.mode)
             success_count += 1
 
         except Exception as e:
-            print(f"ERROR: {e}")
+            print(f"  [{i}/{total}] {entity_name} ERROR: {e}")
             clean_writer.writerow({"entity_name": entity_name})
             sources_writer.writerow(
                 {"entity_name": entity_name, "research_notes": f"ERROR: {e}"}
@@ -498,40 +539,175 @@ async def _run_batch(
     total = len(entities)
     success_count = 0
     error_count = 0
+    run_start = time.time()
+    entity_times: list[float] = []
 
     async def bounded(idx: int, name: str):
         async with sem:
+            entity_start = time.time()
             try:
-                data = await research_entity_async(client, name, skill, model)
-                return (idx, name, data, None)
+                data = await research_entity_async(
+                    client, name, skill, model,
+                    entity_idx=idx + 1, total=total, run_start=run_start,
+                )
+                return (name, data, None, time.time() - entity_start)
             except Exception as e:
-                return (idx, name, None, e)
+                return (name, None, e, time.time() - entity_start)
 
     tasks = [asyncio.create_task(bounded(i, n)) for i, n in enumerate(entities)]
     done_count = 0
 
     for coro in asyncio.as_completed(tasks):
-        idx, entity_name, data, err = await coro
+        entity_name, data, err, elapsed = await coro
         done_count += 1
-        label = f"[{done_count}/{total}] {entity_name} ... "
 
         if err:
-            print(f"{label}ERROR: {err}")
+            print(f"  [{done_count}/{total}] {entity_name} ERROR: {err}")
             clean_writer.writerow({"entity_name": entity_name})
             sources_writer.writerow(
                 {"entity_name": entity_name, "research_notes": f"ERROR: {err}"}
             )
             error_count += 1
         else:
+            entity_times.append(elapsed)
+            avg = sum(entity_times) / len(entity_times)
+            remaining_entities = total - done_count
+            eta = f"~{int(avg * remaining_entities / 60 / concurrency)}m remaining" if remaining_entities else "done"
             fields = SKILL_FIELDS[skill.name]
             sources_row = profile_to_sources_row(data, fields)
             clean_row = to_clean_row(sources_row, fields)
             clean_writer.writerow(clean_row)
             sources_writer.writerow(sources_row)
-            _print_summary(label, clean_row, skill.mode)
+            _print_summary(f"[{done_count}/{total}] {entity_name} | {eta} | ", clean_row, skill.mode)
             success_count += 1
 
         # Flush after every entity so a crash doesn't lose completed work.
+        clean_f.flush()
+        src_f.flush()
+
+    return success_count, error_count
+
+
+# ---------------------------------------------------------------------------
+# Batches API runner — 50% cost discount, async, one request per entity
+# ---------------------------------------------------------------------------
+
+async def _run_batches_api(
+    entities: list[str],
+    skill: Skill,
+    model: str,
+    clean_writer,
+    sources_writer,
+    clean_f,
+    src_f,
+) -> tuple[int, int]:
+    """
+    Submit all entities to the Anthropic Messages Batches API in a single batch,
+    then poll until processing is complete and write results to CSV.
+
+    Trade-offs vs real-time mode:
+    - ~50% cost discount
+    - No multi-round agentic loop (single request per entity)
+    - No read_file progressive disclosure
+    - Results arrive asynchronously (minutes to ~1 hour)
+    """
+    client = AsyncAnthropic(timeout=600.0)
+    total = len(entities)
+    output_schema = SKILL_OUTPUT_SCHEMAS[skill.name]
+    fields = SKILL_FIELDS[skill.name]
+
+    # Build one request per entity
+    requests = []
+    for entity_name in entities:
+        static_text = skill.prompt_template.replace("{entity}", "[ENTITY]")
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": static_text,
+                        "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                    },
+                    {
+                        "type": "text",
+                        "text": f'Research: "{entity_name}"',
+                    },
+                ],
+            }
+        ]
+        requests.append({
+            "custom_id": entity_name,
+            "params": {
+                "model": model,
+                "max_tokens": 4096,
+                "tools": [
+                    {"type": "web_search_20250305", "name": "web_search", "max_uses": 3},
+                    {"type": "web_fetch_20250910",  "name": "web_fetch",  "max_uses": 2},
+                ],
+                "messages": messages,
+                "output_config": {"format": {"type": "json_schema", "schema": output_schema}},
+            },
+        })
+
+    print(f"Submitting {total} entities to Messages Batches API...")
+    batch = await client.messages.batches.create(requests=requests)
+    batch_id = batch.id
+    print(f"Batch submitted: {batch_id}")
+    print("Polling for results (this may take minutes to ~1 hour)...\n")
+
+    # Poll until batch ends
+    poll_interval = 3600
+    while True:
+        await asyncio.sleep(poll_interval)
+        batch = await client.messages.batches.retrieve(batch_id)
+        counts = batch.request_counts
+        print(
+            f"  Batch {batch_id[:16]}... | processing: {counts.processing} | "
+            f"succeeded: {counts.succeeded} | errored: {counts.errored}",
+            flush=True,
+        )
+        if batch.processing_status == "ended":
+            break
+
+    print(f"\nBatch complete. Retrieving results...")
+    success_count = 0
+    error_count = 0
+
+    async for result in await client.messages.batches.results(batch_id):
+        entity_name = result.custom_id
+        if result.result.type == "succeeded":
+            text = next(
+                (b.text for b in result.result.message.content if hasattr(b, "text")),
+                None,
+            )
+            if text:
+                try:
+                    data = json.loads(text)
+                    data["entity_name"] = entity_name
+                    sources_row = profile_to_sources_row(data, fields)
+                    clean_row = to_clean_row(sources_row, fields)
+                    clean_writer.writerow(clean_row)
+                    sources_writer.writerow(sources_row)
+                    _print_summary(f"{entity_name} | ", clean_row, skill.mode)
+                    success_count += 1
+                except Exception as e:
+                    print(f"  {entity_name} parse ERROR: {e}")
+                    clean_writer.writerow({"entity_name": entity_name})
+                    sources_writer.writerow({"entity_name": entity_name, "research_notes": f"ERROR: {e}"})
+                    error_count += 1
+            else:
+                print(f"  {entity_name} ERROR: no text in response")
+                clean_writer.writerow({"entity_name": entity_name})
+                sources_writer.writerow({"entity_name": entity_name, "research_notes": "ERROR: no text in response"})
+                error_count += 1
+        else:
+            err = getattr(result.result, "error", result.result)
+            print(f"  {entity_name} ERROR: {err}")
+            clean_writer.writerow({"entity_name": entity_name})
+            sources_writer.writerow({"entity_name": entity_name, "research_notes": f"ERROR: {err}"})
+            error_count += 1
+
         clean_f.flush()
         src_f.flush()
 
@@ -710,6 +886,15 @@ def main():
         ),
     )
     parser.add_argument(
+        "--batch",
+        action="store_true",
+        help=(
+            "Use the Anthropic Messages Batches API for a ~50%% cost discount. "
+            "Requests are submitted all at once and polled asynchronously. "
+            "No multi-round agentic loop — one request per entity."
+        ),
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Skip the cost confirmation prompt (for CI / scripted use).",
@@ -822,7 +1007,16 @@ def main():
         clean_writer.writeheader()
         sources_writer.writeheader()
 
-        if args.concurrency > 1:
+        if args.batch:
+            print(f"Running {len(entities)} entities via Messages Batches API (50% discount, async)...\n")
+            success_count, error_count = asyncio.run(
+                _run_batches_api(
+                    entities, skill, args.model,
+                    clean_writer, sources_writer, clean_f, src_f,
+                )
+            )
+
+        elif args.concurrency > 1:
             print(f"Running {len(entities)} entities with {args.concurrency} concurrent workers...\n")
             success_count, error_count = asyncio.run(
                 _run_batch(

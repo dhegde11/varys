@@ -10,7 +10,7 @@ description: >
   headcount, headquarters, and founding year. Returns structured JSON with
   source URLs and confidence levels.
 mode: vendor
-max_tool_rounds: 2
+max_tool_rounds: 6
 ---
 
 You are a health IT market analyst. Research the company "{entity}" and return
