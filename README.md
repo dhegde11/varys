@@ -6,32 +6,39 @@ A market intelligence tool for the health IT ecosystem with three capabilities:
 - **Vendor research** — Profile health IT companies for competitive analysis. Who are they, what do they sell, who have they sold to, how are they funded, and what is their regulatory status?
 - **Health system research** — Profile hospitals and health systems for BD prospecting. Built-in discovery by US state — no input list needed. A free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/), powered by the public CMS API.
 
-## Architecture
+Two ways to use this tool:
 
-```mermaid
-flowchart LR
-    A["Natural language query"] -->|discover| B["company list"]
-    B --> C["Research loop<br/>with one context window per entity"]
-    D["CSV input"] --> C
-    C --> E["results.csv<br/>clean values"]
-    C --> F["results_sources.csv<br/>values + source URLs + confidence"]
-```
+**One at a time (interactive)** — Load a skill file into any AI assistant (Claude, ChatGPT, Gemini, etc.) and research entities conversationally. Ask follow-up questions, refine results, and build a competitor list interactively before exporting.
 
-Three ways to use this tool:
-
-| Interface | Use case |
-|---|---|
-| **Coding assistant discovery agent** | Build a competitor list from natural language, iteratively |
-| **Coding assistant research skill** | Profile a single company or health system, interactively |
-| **CLI batch runner** (`research.py`) | CSV → CSV at any scale |
-
-The same skill files (`.claude/skills/`) drive both the coding assistant and CLI. A single edit to a skill propagates to both.
+**Batch (CLI)** — Run `research.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
 
 ## Useful for
 
 BD teams, competitive intelligence analysts, and market researchers in health IT who need structured, source-cited data without a Definitive Healthcare subscription.
 
 ## Quickstart
+
+### Interactive (AI assistant)
+
+Load a skill file from the `skills/` folder into your AI assistant of choice and prompt it directly:
+
+```
+Use the researching-health-it-vendor skill to profile Abridge
+```
+
+```
+Use the researching-health-system skill to profile Mayo Clinic
+```
+
+To build a competitor list interactively, use the discovery skill:
+
+```
+Find me AI scribe competitors to Nuance
+```
+
+The assistant will propose a list and let you refine it ("remove Nuance itself", "add Suki", "only keep Series B+") before exporting to CSV.
+
+### Batch (CLI)
 
 ```bash
 # Install dependencies
@@ -55,30 +62,15 @@ python research.py --skill researching-health-system --input sample_health_syste
 python research.py --skill researching-health-system --discover --state CA --output ca_results.csv
 ```
 
-### Use your coding assistant (conversational)
+## Architecture
 
-Open this project in your coding assistant and use the discovery agent to build a list interactively:
-
-```
-Find me AI scribe competitors to Nuance
-```
-
-The agent will propose a list, let you refine it ("remove Nuance itself", "add Suki", "only keep Series B+"), then save `discovered_competitors.csv`. Follow up with:
-
-```bash
-python research.py --skill researching-health-it-vendor \
-  --input discovered_competitors.csv \
-  --output results.csv
-```
-
-To profile a single entity interactively:
-
-```
-Use the researching-health-it-vendor skill to profile Abridge
-```
-
-```
-Use the researching-health-system skill to profile Mayo Clinic
+```mermaid
+flowchart LR
+    A["Natural language query"] -->|discover| B["Company list"]
+    B --> C["Research loop<br/>with one context window per entity"]
+    D["CSV input"] --> C
+    C --> E["results.csv<br/>clean values"]
+    C --> F["results_sources.csv<br/>values + source URLs + confidence"]
 ```
 
 ## Output
