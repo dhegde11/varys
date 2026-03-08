@@ -131,7 +131,7 @@ and is expensive to discover and correct later.
 
 ### Flush after every entity
 Both output CSVs are flushed row-by-row immediately after each entity completes
-([lookup.py:344-345](lookup.py#L344-L345)). A mid-run crash — network timeout,
+([lookup.py:344-345](../lookup.py#L344-L345)). A mid-run crash — network timeout,
 API error, Ctrl+C — preserves every result written so far. Without this, the output
 buffers wouldn't be written until the process exits cleanly.
 
@@ -154,14 +154,14 @@ mode makes logs readable and prevents rate limits entirely. The `--delay` flag (
 1 second) adds breathing room between entities. Set `--delay 0` to remove it.
 
 ### `read_file` restricted to `.claude/skills/`
-The client-side `read_file` tool ([lookup.py:165-184](lookup.py#L165-L184)) whitelists
+The client-side `read_file` tool ([lookup.py:165-184](../lookup.py#L165-L184)) whitelists
 only the skills directory. The model can load its own reference documents but cannot
 read arbitrary filesystem paths — preventing accidental exposure of credentials, configs,
 or other local files if the model is ever prompted adversarially through a web page it fetches.
 
 ### Cost gate before any API call
 The CLI always prints an estimate and requires confirmation before calling the API
-([lookup.py:565-587](lookup.py#L565-L587)). This makes cost visible and intentional.
+([lookup.py:565-587](../lookup.py#L565-L587)). This makes cost visible and intentional.
 `--yes` disables it for CI. `--max-entities` provides a hard cap as a secondary guard.
 
 ### Python as orchestrator, not an LLM
