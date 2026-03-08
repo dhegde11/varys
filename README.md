@@ -1,6 +1,6 @@
 # healthtech-intel
 
-A market intelligence tool for the health IT ecosystem with three skills:
+A market intelligence tool for the health IT ecosystem with three capabilities:
 
 - **Vendor discovery** — Build a competitor list from natural language. "Find AI scribe competitors to Nuance" → curated company list → CSV ready for research.
 - **Vendor research** — Profile health IT companies for competitive analysis. Who are they, what do they sell, who have they sold to, how are they funded, and what is their regulatory status?
@@ -182,3 +182,5 @@ Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
 For design decisions — why Python over an LLM orchestrator, how context isolation works, source priority per field, and how to tune research depth — see [Architecture & Design Decisions](docs/design.md).
 
 If you use OpenAI or Gemini instead of Anthropic, see [Using with other AI assistants](docs/other-assistants.md) to adapt `research.py` to another provider.
+
+This project was built while working through DeepLearning.AI's course, [Agent Skills with Anthropic](https://www.deeplearning.ai/short-courses/agent-skills-with-anthropic/).
