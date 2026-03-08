@@ -2,16 +2,17 @@
 
 ## Primary Databases (check first)
 
-### CMS Care Compare
-URL: https://www.medicare.gov/care-compare/
-- Bed count, ownership type, CMS star rating, hospital type
-- Search by hospital name or address
-- Direct URL pattern: https://www.medicare.gov/care-compare/details/Hospital/[provider-id]
+### CMS Hospital General Information API
+URL: https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0
+- Returns ownership type and CMS star rating without JavaScript
+- Filter by name: `?conditions[0][property]=facility_name&conditions[0][value]=%25[SHORT NAME]%25&conditions[0][operator]=LIKE&limit=5`
+- Filter by provider ID: `?conditions[0][property]=facility_id&conditions[0][value]=[ID]&conditions[0][operator]==&limit=1`
+- CMS uses abbreviated uppercase names (e.g., "HOSPITAL OF UNIV OF PENNSYLVANIA") — try short keyword variations
+- Key fields: `hospital_ownership`, `hospital_overall_rating` (1–5 stars)
+- **bed_count is NOT in this dataset** — use hospital website instead
 
-### CMS Hospital General Information (bulk data)
-URL: https://data.cms.gov/provider-data/dataset/xubh-q36u
-- Downloadable CSV with all US hospitals
-- Fields: facility name, address, state, type, ownership, bed count
+Note: The Care Compare UI (medicare.gov/care-compare) requires JavaScript and cannot
+be fetched reliably with web_fetch. Use the API above instead.
 
 ## By Field
 
@@ -22,13 +23,13 @@ URL: https://data.cms.gov/provider-data/dataset/xubh-q36u
 4. News coverage — acquisition/merger announcements
 
 ### bed_count
-1. CMS Care Compare — licensed bed count
-2. Hospital website — about/facts page ("X-bed hospital")
-3. State department of health facility database
-4. Note: "licensed beds" vs "staffed beds" vs "available beds" — prefer licensed
+1. Hospital website — about/facts page ("X-bed hospital")
+2. State department of health facility database
+3. Note: "licensed beds" vs "staffed beds" vs "available beds" — prefer licensed
+4. Note: bed_count is NOT in the CMS Hospital General Information API (xubh-q36u)
 
 ### ownership_type
-1. CMS Care Compare — ownership field
+1. CMS Hospital General Information API — `hospital_ownership` field (see Primary Databases above)
 2. IRS EO Select Check (for 501(c)(3) status): https://apps.irs.gov/app/eos/
 3. Hospital website — governance/board page
 
@@ -41,9 +42,8 @@ URL: https://data.cms.gov/provider-data/dataset/xubh-q36u
 5. Epic's "Find a Doctor" or "MyChart" pages list Epic customers
 
 ### cms_star_rating
-1. CMS Care Compare — star rating displayed on hospital profile
-2. URL: https://www.medicare.gov/hospitalcompare/search.html
-3. Note the rating year in research_notes (ratings update annually)
+1. CMS Hospital General Information API — `hospital_overall_rating` field (see Primary Databases above)
+2. Note the rating year in research_notes (ratings update annually)
 
 ### teaching_hospital
 1. COTH directory: https://www.aamc.org/what-we-do/mission-areas/medical-education/coth
@@ -90,7 +90,7 @@ URL: https://data.cms.gov/provider-data/dataset/xubh-q36u
 
 ## General Guidance
 
-- CMS Care Compare is the single most reliable starting point for any US hospital
+- The CMS Hospital General Information API (data.cms.gov) is the most reliable starting point for ownership type and star rating — no JavaScript required
 - For non-profit hospitals, the IRS 990 (via ProPublica) is the authoritative financial source
 - For for-profit hospitals, SEC 10-K filings (parent company) are authoritative
 - When a hospital is part of a large system, some data (EHR, revenue) may only be

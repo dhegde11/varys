@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+import anthropic
 from anthropic import AsyncAnthropic
 
 # Load .env file if present (so ANTHROPIC_API_KEY doesn't need to be exported manually)
@@ -331,6 +332,40 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     )
 
 
+def _trim_tool_results(messages: list[dict], keep_rounds: int = 1) -> None:
+    """Truncate large tool-result content from older rounds in-place.
+
+    By the time round R runs, the model has already synthesized raw web
+    content from rounds 0..R-2 into its assistant text blocks. Keeping full
+    page bodies in context just burns tokens. We keep `keep_rounds` most
+    recent assistant rounds intact and truncate everything older.
+    """
+    MAX_CHARS = 500
+    NOTE = " [truncated]"
+    assistant_positions = [i for i, m in enumerate(messages) if m.get("role") == "assistant"]
+    if len(assistant_positions) <= keep_rounds:
+        return
+    cutoff_idx = assistant_positions[-(keep_rounds + 1)]
+    for msg in messages[: cutoff_idx + 1]:
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") not in ("server_tool_result", "tool_result"):
+                continue
+            inner = block.get("content")
+            if isinstance(inner, str) and len(inner) > MAX_CHARS:
+                block["content"] = inner[:MAX_CHARS] + NOTE
+            elif isinstance(inner, list):
+                for item in inner:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text = item.get("text", "")
+                        if len(text) > MAX_CHARS:
+                            item["text"] = text[:MAX_CHARS] + NOTE
+
+
 async def research_entity_async(
     client: AsyncAnthropic, entity_name: str, skill: Skill, model: str,
     *,
@@ -396,9 +431,23 @@ async def research_entity_async(
         heartbeat_prefix = f"[{entity_idx}/{total}] {entity_name} | round {round_num+1}"
         heartbeat = asyncio.create_task(_heartbeat(heartbeat_prefix))
         try:
+            # Retry this round with exponential backoff on 429 rate limit errors.
             # Use create() (not stream()) so response.container is populated,
             # which is required for multi-round calls when code execution runs.
-            response = await client.messages.create(**stream_kwargs)
+            for attempt in range(3):
+                try:
+                    response = await client.messages.create(**stream_kwargs)
+                    break
+                except anthropic.RateLimitError as e:
+                    if attempt == 2:
+                        raise
+                    wait = 60 * (2 ** attempt)  # 60s, 120s
+                    print(
+                        f"  [{entity_idx}/{total}] {entity_name} | round {round_num+1}"
+                        f" rate-limited, retrying in {wait}s...",
+                        flush=True,
+                    )
+                    await asyncio.sleep(wait)
         finally:
             heartbeat.cancel()
             try:
@@ -423,7 +472,17 @@ async def research_entity_async(
             data["entity_name"] = entity_name  # always authoritative from the caller
             return data
 
-        messages.append({"role": "assistant", "content": response.content})
+        # Convert SDK objects to dicts so we can mutate them for trimming.
+        assistant_content = [
+            b.model_dump() if hasattr(b, "model_dump") else b
+            for b in response.content
+        ]
+        messages.append({"role": "assistant", "content": assistant_content})
+
+        # Trim raw tool-result bodies from older rounds to keep context bounded.
+        # The model has already synthesized earlier rounds into its text blocks,
+        # so keeping full page bodies around just burns tokens.
+        _trim_tool_results(messages)
 
         # pause_turn: server-side tools hit their iteration limit.
         # Re-send without a new user message — server resumes automatically.

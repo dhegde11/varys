@@ -31,18 +31,21 @@ payer_mix, or annual_revenue — these fields have specific authoritative databa
 **Before researching bed_count, cms_star_rating, ownership_type, payer_mix, or annual_revenue,
 load source-priority.md** — it lists the exact authoritative databases to check for each field.
 
-1. **CMS Care Compare** — bed_count, ownership_type, cms_star_rating. Search
-   `"[name] site:medicare.gov/care-compare"` to find the provider page.
-   - If the entity is a **health system** (not a single hospital): CMS tracks individual
-     hospitals, not systems. Search CMS for the flagship or main hospital (e.g., for
-     "Penn Medicine" search "Hospital of the University of Pennsylvania site:medicare.gov/care-compare").
-     Record that hospital's licensed bed count, note in research_notes that it is the
-     flagship hospital count, and mention how many hospitals the system operates.
-   - **Only accept bed_count from CMS Care Compare or the hospital's own website.**
-     Third-party aggregators (RiskConnect, Definitive Healthcare, etc.) are not acceptable
-     sources — set confidence to low and note the limitation if CMS is unavailable.
-   - **cms_star_rating must come from medicare.gov/care-compare.** If only non-CMS results
-     appear, set to null rather than accepting a third-party source.
+1. **CMS data API** — ownership_type, cms_star_rating. Use the JSON API directly
+   (no JavaScript required). Fetch:
+   ```
+   https://data.cms.gov/provider-data/api/1/datastore/query/xubh-q36u/0?conditions[0][property]=facility_name&conditions[0][value]=%25[SHORT NAME]%25&conditions[0][operator]=LIKE&limit=5
+   ```
+   CMS uses abbreviated uppercase names (e.g., "HOSPITAL OF UNIV OF PENNSYLVANIA").
+   Try short keyword variations if the first attempt returns 0 results or a fetch error.
+   If you know the CMS provider ID, filter by `facility_id` instead for an exact match.
+   Fields: `hospital_ownership` → ownership_type, `hospital_overall_rating` → cms_star_rating.
+   **bed_count is not in this dataset** — use the hospital's own website (about/facts page)
+   for bed count. Only accept bed_count from the hospital website or CMS — not third-party
+   aggregators (RiskConnect, Definitive Healthcare, etc.).
+   - If the entity is a **health system**: CMS tracks individual hospitals, not systems.
+     Query the flagship hospital name. Record its bed count and note in research_notes
+     that it is the flagship count, and how many hospitals the system operates.
 2. **Hospital website** — EHR vendor, system affiliation, leadership.
 3. **CMS ACO/bundled payment data** — VBC participation.
 4. **ProPublica Nonprofit Explorer or IRS 990** — annual revenue, payer mix.
@@ -53,9 +56,19 @@ load source-priority.md** — it lists the exact authoritative databases to chec
 If a field yields no data after 2 searches, set to null and move on. A null with
 low confidence is more useful than an exhaustive search that turns up nothing.
 
+**Exhaustiveness rule:** Before generating final output, review every field in the
+output schema. For any field still null that has not yet been searched, run at least
+one targeted search before stopping. Do not return end_turn while null fields remain
+unresearched and tool rounds are still available. Stopping early wastes the research
+budget and leaves gaps that could have been filled.
+
+
 Set confidence to **high** only when data comes from an authoritative primary source
 (CMS database, IRS 990, hospital annual report, official press release).
 Use **null** over a low-confidence guess.
+
+**When sources conflict:** prefer the most recent source. If recency is equal, prefer
+the higher-confidence source. Note both values and their dates in research_notes.
 
 ## Fields to Research
 
@@ -65,6 +78,9 @@ Use **null** over a low-confidence guess.
 
 3. **ownership_type** — One of:
    `Non-profit / For-profit / Academic / Government / Unknown`
+   If the entity is university-owned or tightly affiliated with a medical school and
+   identifies as an academic medical center, use **Academic** — it is the more specific
+   and more useful category than Non-profit for BD purposes.
 
 4. **ehr_vendor** — Primary EHR platform. One of:
    `Epic / Oracle Health / Meditech / Allscripts / athenahealth / Other / Unknown`
@@ -94,6 +110,7 @@ Use **null** over a low-confidence guess.
 
 13. **geographic_region** — One of:
     `Northeast / Southeast / Midwest / Southwest / West`
+    Derive from state. Use the URL where the entity's location was confirmed as source_url.
 
 ## Output Schema
 
