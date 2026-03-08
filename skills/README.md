@@ -1,6 +1,6 @@
 # Skills
 
-These are the research prompt templates that power healthtech-intel. They are plain markdown and work with any LLM that can execute web searches.
+These are the skill files that power healthtech-intel. Each skill defines a structured research workflow — what to look for, how to prioritize sources, how to handle missing data, and what schema to return. They work with any LLM that can execute web searches.
 
 ## What's here
 
@@ -10,15 +10,10 @@ These are the research prompt templates that power healthtech-intel. They are pl
 | [`researching-health-it-vendor.md`](researching-health-it-vendor.md) | Profile a health IT company for competitive intelligence |
 | [`discovering-health-it-competitors.md`](discovering-health-it-competitors.md) | Discover companies matching a natural language query |
 
-## How to use with Claude Code
+## How to use with AI assistants
 
-The `.claude/skills/` and `.claude/agents/` directories at the project root wire these prompts into Claude Code automatically. See the main [README](../README.md) for setup instructions.
+These files follow the [Agent Skills](https://agentskills.io) open standard, supported by Claude Code, OpenAI Codex, Cursor, GitHub Copilot, Gemini CLI, and others.
 
-## How to use with other AI assistants
+**With a compatible coding assistant** — drop the skill files into your agent's skills directory. They'll be auto-discovered and available by name. See your tool's documentation for the exact path. If you're using Claude Code, this repo's `.claude/skills/` folder is already wired in — clone the repo and they will be active automatically.
 
-Copy the prompt content (below the YAML frontmatter) and paste it into your assistant's system prompt or custom instructions. Replace `{entity}` or `{query}` with the specific name you want to research.
-
-YAML frontmatter notes:
-- `name` / `description` — informational, for Claude Code's skill registry
-- `max_tool_rounds` — tells the Claude Code runner how many search rounds to allow; ignore for other assistants
-- `mode` — used by `research.py` internally; ignore for other assistants
+**With an AI chat interface** (Claude.ai, ChatGPT, etc.) — paste the skill content (everything below the YAML frontmatter) into your project instructions. Then mention the entity name in your message and the skill will apply automatically.
