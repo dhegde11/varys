@@ -149,24 +149,6 @@ cio_name, geographic_region
 
 ---
 
-## Cost
-
-The CLI shows an estimate and requires confirmation before any API call.
-
-**Real-world cost: ~$0.50 per company** (your mileage will vary by entity size and obscurity).
-
-| Companies | Estimated total |
-|---|---|
-| 1 | ~$0.15 – $0.50 |
-| 10 | ~$1.50 – $5.00 |
-| 100 | ~$15 – $50 |
-
-> Prices above are estimates only. Model pricing changes frequently. Always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.
-
-Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
-
----
-
 ## CLI flags
 
 | Flag | Default | Description |
@@ -190,6 +172,24 @@ Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
 - `ANTHROPIC_API_KEY` — set in environment before running
 - `anthropic>=0.40.0`
 - `pyyaml>=6.0`
+
+---
+
+## Cost
+
+The CLI shows an estimate and requires confirmation before any API call.
+
+**Real-world cost: ~$0.50 per company** (your mileage will vary by entity size and obscurity).
+
+| Companies | Estimated total |
+|---|---|
+| 1 | ~$0.15 – $0.50 |
+| 10 | ~$1.50 – $5.00 |
+| 100 | ~$15 – $50 |
+
+> Prices above are estimates only. Model pricing changes frequently. Always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.
+
+Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
 
 ---
 
