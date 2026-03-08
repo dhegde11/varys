@@ -473,15 +473,8 @@ Key cost levers:
 ### Tuning research depth (`max_tool_rounds`)
 
 Each skill file (`.claude/skills/*/SKILL.md`) has a `max_tool_rounds` YAML field that
-caps how many API call rounds the model may use per entity before being forced to return
-whatever it has found. Each round can make up to 3 web searches and 2 web fetches.
-
-**Defaults ship set for testing (low cost, not production quality):**
-
-| Skill | Testing default | Balanced | High rigor |
-|---|---|---|---|
-| `researching-health-it-vendor` | 2 | **6** | 10 |
-| `researching-health-system` | 5 | **5** | 8 |
+caps how many API call rounds the model may use per entity. Each round can make up to
+3 web searches and 2 web fetches.
 
 **To change it**, edit the frontmatter of the relevant skill file:
 
@@ -497,12 +490,12 @@ max_tool_rounds: 5   ← change this
 
 | Setting | Effect | When to use |
 |---|---|---|
-| 2–3 | Fast, cheap (~$0.15/entity), may miss VBC, payer mix, IRS 990 data | Testing, spot checks |
-| 5–6 | Balanced — covers most fields from primary sources (~$0.25–0.35/entity) | Standard production runs |
+| 2–3 | Fast, cheap (~$0.15/entity), may miss VBC, payer mix, IRS 990 data | Spot checks, large low-stakes lists |
+| 5–6 | Balanced — covers most fields from primary sources (~$0.25–0.35/entity) | Standard runs |
 | 8–10 | Maximum rigor — model retries on CMS failures, fetches IRS 990s (~$0.40–0.60/entity) | High-value BD lists, audits |
 
 Higher `max_tool_rounds` does not guarantee better results — it gives the model
-more attempts to find primary sources before it gives up. For well-known health systems
+more attempts to find primary sources before giving up. For well-known health systems
 and major vendors, 5–6 rounds is typically sufficient. For smaller or obscure entities,
 10 rounds may still return nulls if no public data exists.
 
