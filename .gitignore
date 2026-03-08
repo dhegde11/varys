@@ -12,6 +12,8 @@ env/
 results*.csv
 *_sources.csv
 *.sqlite
+outputs/
+discovered_competitors.csv
 
 # Environment
 .env
