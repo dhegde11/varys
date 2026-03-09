@@ -20,23 +20,19 @@ BD teams, competitive intelligence analysts, and market researchers in health IT
 
 ### Interactive (AI assistant)
 
-Load a skill file from the `skills/` folder into your AI assistant of choice and prompt it directly:
-
-```
-Use the researching-health-it-vendor skill to profile Abridge
-```
-
-```
-Use the researching-health-system skill to profile Mayo Clinic
-```
-
-To build a competitor list interactively, use the discovery skill:
+Load a skill file from the `skills/` folder into your AI assistant of choice. Then either ask:
 
 ```
 Find me AI scribe competitors to Nuance
 ```
 
 The assistant will propose a list and let you refine it ("remove Nuance itself", "add Suki", "only keep Series B+") before exporting to CSV.
+
+Or use a slash command:
+
+```
+/researching-health-it-vendor Abridge
+```
 
 ### Batch (CLI)
 
