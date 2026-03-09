@@ -896,8 +896,8 @@ def _run_research(entities: list[str], skill, args, output_path, sources_path) -
         open(output_path,  "w", newline="", encoding="utf-8") as clean_f,
         open(sources_path, "w", newline="", encoding="utf-8") as src_f,
     ):
-        clean_writer   = csv.DictWriter(clean_f,  fieldnames=clean_fieldnames, extrasaction="ignore")
-        sources_writer = csv.DictWriter(src_f,    fieldnames=src_fieldnames,   extrasaction="ignore")
+        clean_writer   = csv.DictWriter(clean_f,  fieldnames=clean_fieldnames, extrasaction="raise")
+        sources_writer = csv.DictWriter(src_f,    fieldnames=src_fieldnames,   extrasaction="raise")
         clean_writer.writeheader()
         sources_writer.writeheader()
 

@@ -132,3 +132,56 @@ class TestResearchEntityUnknownStopReason:
         client.messages.create = AsyncMock(return_value=self._make_end_response())
         result = asyncio.run(research_entity_async(client, "Acme", skill, "test-model"))
         assert result["entity_name"] == "Acme"
+
+
+class TestExtrasactionRaises:
+    def test_unexpected_field_in_sources_row_raises(self, tmp_path):
+        """
+        If _run_research receives a row with an unexpected column it must raise,
+        not silently drop it. This guards against field-name typos in callers.
+        """
+        skill = MagicMock()
+        skill.name = "researching-health-it-vendor"
+        skill.mode = "vendor"
+
+        async def fake_sequential(entities, skill, model, clean_writer, sources_writer, clean_f, src_f):
+            sources_row = {f: "" for f in _mod.sources_fieldnames(_mod.SKILL_FIELDS[skill.name])}
+            sources_row["ghost_column"] = "should cause raise"
+            sources_writer.writerow(sources_row)  # must raise with extrasaction="raise"
+            return (1, 0)
+
+        args = MagicMock()
+        args.batch = False
+        args.concurrency = 1
+        args.model = "model"
+
+        out = tmp_path / "out.csv"
+        src = tmp_path / "out_sources.csv"
+
+        with patch.object(_mod, "_run_sequential", new=fake_sequential):
+            with pytest.raises(ValueError):
+                _mod._run_research(["Acme"], skill, args, out, src)
+
+    def test_unexpected_field_in_clean_row_raises(self, tmp_path):
+        """Same guard for the clean (non-sources) writer."""
+        skill = MagicMock()
+        skill.name = "researching-health-it-vendor"
+        skill.mode = "vendor"
+
+        async def fake_sequential(entities, skill, model, clean_writer, sources_writer, clean_f, src_f):
+            clean_row = {f: "" for f in _mod.SKILL_FIELDS[skill.name]}
+            clean_row["ghost_column"] = "should cause raise"
+            clean_writer.writerow(clean_row)
+            return (1, 0)
+
+        args = MagicMock()
+        args.batch = False
+        args.concurrency = 1
+        args.model = "model"
+
+        out = tmp_path / "out.csv"
+        src = tmp_path / "out_sources.csv"
+
+        with patch.object(_mod, "_run_sequential", new=fake_sequential):
+            with pytest.raises(ValueError):
+                _mod._run_research(["Acme"], skill, args, out, src)
