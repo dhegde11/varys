@@ -1096,6 +1096,11 @@ def main():
         "health-system": "researching-health-system",
     }[args.target]
 
+    # Guard concurrency early so pipeline and research both get a clean error message.
+    if getattr(args, "concurrency", None) is not None and args.concurrency < 1:
+        print("ERROR: --concurrency must be at least 1.", file=sys.stderr)
+        sys.exit(1)
+
     # -------------------------------------------------------------------------
     # discover branch — build entity list and write to CSV, then exit
     # -------------------------------------------------------------------------
@@ -1207,10 +1212,6 @@ def main():
             for row in reader
             if row["entity_name"].strip()
         ]
-
-    if args.command in ("research", "pipeline") and args.concurrency < 1:
-        print("ERROR: --concurrency must be at least 1.", file=sys.stderr)
-        sys.exit(1)
 
     # Cost estimation gate
     est_cost_low  = len(entities) * COST_PER_ENTITY_LOW
