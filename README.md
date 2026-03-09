@@ -10,7 +10,7 @@ Two ways to use this tool:
 
 **One at a time (interactive)** — Load a skill file into any AI assistant (Claude, ChatGPT, Gemini, etc.) and research entities conversationally. Ask follow-up questions, refine results, and build a competitor list interactively before exporting.
 
-**Batch (CLI)** — Run `research.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
+**Batch (CLI)** — Run `healthtech-intel.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
 
 ## Useful for
 
@@ -47,19 +47,22 @@ pip install -r requirements.txt
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Discover competitors via natural language, then profile them
-python research.py --skill researching-health-it-vendor \
-  --discover-query "AI scribe competitors to Nuance" \
-  --output results.csv
+# Discover competitors via natural language (prompts for query), then profile them
+python healthtech-intel.py discover vendor --output discovered_vendors.csv
+python healthtech-intel.py research vendor --input discovered_vendors.csv --output results.csv
+
+# Or do both in one shot with the pipeline command
+python healthtech-intel.py pipeline vendor --output results.csv
 
 # Profile vendors from a known list
-python research.py --skill researching-health-it-vendor --input sample_vendors.csv --output results.csv
+python healthtech-intel.py research vendor --input sample_vendors.csv --output results.csv
 
 # Profile health systems from a list
-python research.py --skill researching-health-system --input sample_health_systems.csv --output results.csv
+python healthtech-intel.py research health-system --input sample_health_systems.csv --output results.csv
 
 # Discover all hospitals in California from CMS public data, then profile them
-python research.py --skill researching-health-system --discover --state CA --output ca_results.csv
+python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
+python healthtech-intel.py research health-system --input ca_hospitals.csv --output ca_results.csv
 ```
 
 ## Architecture
@@ -131,21 +134,37 @@ cio_name, geographic_region
 | `innovation_program` | true / false |
 | `geographic_region` | Northeast / Southeast / Midwest / Southwest / West |
 
-## CLI flags
+## CLI subcommands
+
+```
+healthtech-intel.py discover vendor       # prompts for query → writes entity CSV
+healthtech-intel.py discover health-system --state CA   # CMS data → writes entity CSV
+healthtech-intel.py research vendor --input vendors.csv
+healthtech-intel.py research health-system --input hospitals.csv
+healthtech-intel.py pipeline vendor       # discover + research in one shot (interactive query)
+healthtech-intel.py pipeline health-system --state CA   # discover + research in one shot
+```
+
+**`discover` flags:**
+
+| Flag | Subcommand | Default | Description |
+|---|---|---|---|
+| `--state` | `health-system` | _(required)_ | Two-letter state code (e.g. `CA`, `NY`). |
+| `--output` | both | see below | Output CSV. Default: `vendor-results.csv` or `<state>-health-systems.csv`. |
+| `--model` | `vendor` | `claude-sonnet-4-6` | Anthropic model. Override via `ANTHROPIC_MODEL` env var. |
+
+**`research` and `pipeline` flags:**
 
 | Flag | Default | Description |
 |---|---|---|
-| `--skill` | _(required)_ | `researching-health-it-vendor` or `researching-health-system` |
-| `--input` | — | Input CSV path. Must have an `entity_name` column. |
-| `--output` | _(required)_ | Clean output CSV path. A `_sources.csv` is auto-written alongside it. |
-| `--discover-query` | — | Vendor skill only. Natural language query to discover companies, then research them. |
-| `--discover` | false | Health-system skill only. Seed entity list from CMS Hospital General Information. |
-| `--state` | — | Two-letter state code for `--discover` (e.g. `CA`, `NY`). |
-| `--model` | `claude-sonnet-4-6` | Anthropic model name. Override via `ANTHROPIC_MODEL` env var. |
-| `--delay` | `1.0` | Seconds between entities in sequential mode (`--concurrency 1`). |
+| `--input` | _(required for research)_ | Input CSV with `entity_name` column. |
+| `--output` | see below | Clean output CSV. A `_sources.csv` is auto-written alongside it. |
+| `--batch` | false | Use Messages Batches API (~50% cost discount, async). |
 | `--concurrency` | `5` | Number of parallel API calls. Recommended range: 5–10. |
-| `--max-entities` | — | Safety cap on entity count. Useful for test runs. |
+| `--model` | `claude-sonnet-4-6` | Anthropic model. Override via `ANTHROPIC_MODEL` env var. |
 | `--yes` | false | Skip the cost confirmation prompt. |
+
+Default output filenames: `healthtech-intel-vendor-research-results.csv`, `healthtech-intel-health-system-research-results.csv`, `vendor-pipeline-results.csv`, `<state>-pipeline-results.csv`.
 
 ## Requirements
 
@@ -173,6 +192,6 @@ Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
 
 For design decisions — why Python over an LLM orchestrator, how context isolation works, source priority per field, and how to tune research depth — see [Architecture & Design Decisions](docs/design.md).
 
-If you use OpenAI or Gemini instead of Anthropic, see [Using with other AI assistants](docs/other-assistants.md) to adapt `research.py` to another provider.
+If you use OpenAI or Gemini instead of Anthropic, see [Using with other AI assistants](docs/other-assistants.md) to adapt `healthtech-intel.py` to another provider.
 
 This project was built while working through DeepLearning.AI's course, [Agent Skills with Anthropic](https://www.deeplearning.ai/short-courses/agent-skills-with-anthropic/).
