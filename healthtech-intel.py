@@ -326,9 +326,10 @@ async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
         if response.stop_reason == "pause_turn":
             continue
 
-        # web_search and web_fetch are server-side: the API executes them automatically
-        # and embeds results as server_tool_use blocks.
-        # No client-side tool_result handling is needed for discovery.
+        # Any other stop_reason (e.g. max_tokens) is unexpected — fail fast.
+        raise RuntimeError(
+            f"Discovery: unexpected stop_reason={response.stop_reason!r} at round {_+1}"
+        )
 
     raise RuntimeError(
         f"Discovery: reached {skill.max_tool_rounds} tool rounds without end_turn"
