@@ -13,14 +13,17 @@ Requires ANTHROPIC_API_KEY environment variable.
 Usage:
     export ANTHROPIC_API_KEY=sk-ant-...
 
-    # Profile health IT vendors
-    python research.py --skill researching-health-it-vendor --input vendors.csv --output results.csv
-
-    # Profile health systems
-    python research.py --skill researching-health-system --input systems.csv --output results.csv
+    # Discover health IT vendors (interactive query prompt)
+    python healthtech-intel.py discover vendor --output vendors.csv
 
     # Discover health systems by state (seeds from CMS public data)
-    python research.py --skill researching-health-system --discover --state CA --output results.csv
+    python healthtech-intel.py discover health-system --state CA --output ca-hospitals.csv
+
+    # Profile health IT vendors
+    python healthtech-intel.py research vendor --input vendors.csv --output results.csv
+
+    # Profile health systems
+    python healthtech-intel.py research health-system --input ca-hospitals.csv --output results.csv
 """
 
 import argparse
@@ -518,7 +521,6 @@ async def _run_sequential(
     entities: list[str],
     skill: "Skill",
     model: str,
-    delay: float,
     clean_writer,
     sources_writer,
     clean_f,
@@ -567,9 +569,6 @@ async def _run_sequential(
             clean_f.flush()
             src_f.flush()
             error_count += 1
-
-        if i < total and delay > 0:
-            await asyncio.sleep(delay)
 
     return success_count, error_count
 
@@ -883,144 +882,192 @@ def discover_health_systems(state: str) -> list[str]:
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Health IT market intelligence — profile vendors for competitive analysis "
-            "or health systems for BD prospecting."
+            "Health IT market intelligence — discover vendors or health systems, "
+            "then profile them for competitive analysis or BD prospecting."
         )
     )
-    parser.add_argument(
-        "--skill",
-        required=True,
-        choices=list(SKILL_FIELDS.keys()),
-        help="Skill to use: 'researching-health-it-vendor' or 'researching-health-system'",
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # -------------------------------------------------------------------------
+    # discover
+    # -------------------------------------------------------------------------
+    discover_parser = subparsers.add_parser(
+        "discover", help="Build an entity list (vendor or health-system)."
     )
-    parser.add_argument(
-        "--input",
-        help="Input CSV path. Must have an 'entity_name' column. Not required with --discover.",
+    discover_sub = discover_parser.add_subparsers(dest="target", required=True)
+
+    # discover vendor
+    dv = discover_sub.add_parser(
+        "vendor", help="Discover health IT vendors via natural language query."
     )
-    parser.add_argument(
+    dv.add_argument(
         "--output",
-        required=True,
-        help="Clean output CSV path. A _sources.csv is also written alongside it.",
+        default="vendor-results.csv",
+        help="Output CSV path (default: vendor-results.csv).",
     )
-    parser.add_argument(
-        "--discover",
-        action="store_true",
-        help="(health-system skill only) Seed entity list from CMS public data.",
-    )
-    parser.add_argument(
-        "--state",
-        help="Two-letter state code for --discover (e.g. CA, NY).",
-    )
-    parser.add_argument(
+    dv.add_argument(
         "--model",
         default=DEFAULT_MODEL,
-        help=f"Anthropic model to use (default: {DEFAULT_MODEL}). Override via ANTHROPIC_MODEL env var.",
+        help=f"Anthropic model to use (default: {DEFAULT_MODEL}).",
     )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=1.0,
-        help="Seconds to sleep between entities in sequential mode (default: 1.0).",
+
+    # discover health-system
+    dhs = discover_sub.add_parser(
+        "health-system", help="Discover health systems from CMS data for a given state."
     )
-    parser.add_argument(
+    dhs.add_argument(
+        "--state",
+        required=True,
+        help="Two-letter state code (e.g. CA, NY).",
+    )
+    dhs.add_argument(
+        "--output",
+        default=None,
+        help="Output CSV path (default: <state>-health-systems.csv).",
+    )
+    dhs.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"Anthropic model to use (default: {DEFAULT_MODEL}).",
+    )
+
+    # -------------------------------------------------------------------------
+    # research
+    # -------------------------------------------------------------------------
+    research_parser = subparsers.add_parser(
+        "research", help="Profile entities from an input CSV."
+    )
+    research_sub = research_parser.add_subparsers(dest="target", required=True)
+
+    # research vendor
+    rv = research_sub.add_parser(
+        "vendor", help="Profile health IT vendors for competitive intelligence."
+    )
+    rv.add_argument("--input", required=True, help="Input CSV with entity_name column.")
+    rv.add_argument(
+        "--output",
+        default="healthtech-intel-vendor-research-results.csv",
+        help="Clean output CSV (default: healthtech-intel-vendor-research-results.csv).",
+    )
+    rv.add_argument(
+        "--batch",
+        action="store_true",
+        help="Use Messages Batches API (~50%% cost discount, async, no agentic loop).",
+    )
+    rv.add_argument(
         "--concurrency",
         type=int,
         default=5,
-        help="Number of concurrent API calls (default: 5). Use 1 for sequential.",
+        help="Concurrent API calls (default: 5). Use 1 for sequential.",
     )
-    parser.add_argument(
-        "--max-entities",
-        type=int,
-        dest="max_entities",
-        help="Cap the entity list to this many entries. Useful as a cost safety limit.",
+    rv.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"Anthropic model to use (default: {DEFAULT_MODEL}).",
     )
-    parser.add_argument(
-        "--discover-query",
-        dest="discover_query",
-        help=(
-            "Natural language query to discover vendors via LLM "
-            "(vendor skill only). E.g. 'AI scribe competitors to Nuance'. "
-            "Replaces --input. Runs a lightweight discovery pass, then "
-            "feeds the resulting company list into the full research pipeline."
-        ),
-    )
-    parser.add_argument(
-        "--batch",
-        action="store_true",
-        help=(
-            "Use the Anthropic Messages Batches API for a ~50%% cost discount. "
-            "Requests are submitted all at once and polled asynchronously. "
-            "No multi-round agentic loop — one request per entity."
-        ),
-    )
-    parser.add_argument(
+    rv.add_argument(
         "--yes",
         action="store_true",
-        help="Skip the cost confirmation prompt (for CI / scripted use).",
+        help="Skip cost confirmation prompt (for CI / scripted use).",
     )
+
+    # research health-system
+    rhs = research_sub.add_parser(
+        "health-system", help="Profile health systems for BD prospecting."
+    )
+    rhs.add_argument("--input", required=True, help="Input CSV with entity_name column.")
+    rhs.add_argument(
+        "--output",
+        default="healthtech-intel-health-system-research-results.csv",
+        help="Clean output CSV (default: healthtech-intel-health-system-research-results.csv).",
+    )
+    rhs.add_argument(
+        "--batch",
+        action="store_true",
+        help="Use Messages Batches API (~50%% cost discount, async, no agentic loop).",
+    )
+    rhs.add_argument(
+        "--concurrency",
+        type=int,
+        default=5,
+        help="Concurrent API calls (default: 5). Use 1 for sequential.",
+    )
+    rhs.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"Anthropic model to use (default: {DEFAULT_MODEL}).",
+    )
+    rhs.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip cost confirmation prompt (for CI / scripted use).",
+    )
+
     args = parser.parse_args()
 
-    # Validate
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
-    if args.discover and args.skill != "researching-health-system":
-        print("ERROR: --discover is only available with --skill researching-health-system.", file=sys.stderr)
-        sys.exit(1)
+    # -------------------------------------------------------------------------
+    # Infer skill name from target subcommand
+    # -------------------------------------------------------------------------
+    skill_name = {
+        "vendor": "researching-health-it-vendor",
+        "health-system": "researching-health-system",
+    }[args.target]
 
-    if args.discover and not args.state:
-        print("ERROR: --discover requires --state (e.g. --state CA).", file=sys.stderr)
-        sys.exit(1)
-
-    if args.discover_query and args.skill != "researching-health-it-vendor":
-        print("ERROR: --discover-query is only available with --skill researching-health-it-vendor.", file=sys.stderr)
-        sys.exit(1)
-
-    if args.discover and args.discover_query:
-        print("ERROR: Cannot use both --discover and --discover-query.", file=sys.stderr)
-        sys.exit(1)
-
-    if not args.discover and not args.discover_query and not args.input:
-        print("ERROR: --input is required unless using --discover or --discover-query.", file=sys.stderr)
-        sys.exit(1)
-
-    # Load skill
-    skill = load_skill(args.skill)
-
-    # Build entity list
-    if args.discover:
-        entities = discover_health_systems(args.state)
-    elif args.discover_query:
-        print(f"Discovering vendors for: \"{args.discover_query}\" ...")
-        entities = asyncio.run(discover_vendors_via_llm(args.discover_query, args.model))
-        preview = ", ".join(entities[:8])
-        suffix = f" ... (+{len(entities) - 8} more)" if len(entities) > 8 else ""
-        print(f"Discovered {len(entities)} companies: {preview}{suffix}\n")
-    else:
-        input_path = Path(args.input)
-        if not input_path.exists():
-            print(f"ERROR: Input file not found: {input_path}", file=sys.stderr)
-            sys.exit(1)
-        with open(input_path, newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            if "entity_name" not in (reader.fieldnames or []):
-                print("ERROR: Input CSV must have an 'entity_name' column.", file=sys.stderr)
+    # -------------------------------------------------------------------------
+    # discover branch — build entity list and write to CSV, then exit
+    # -------------------------------------------------------------------------
+    if args.command == "discover":
+        if args.target == "vendor":
+            query = input("Query: ").strip()
+            if not query:
+                print("ERROR: Query cannot be empty.", file=sys.stderr)
                 sys.exit(1)
-            entities = [
-                row["entity_name"].strip()
-                for row in reader
-                if row["entity_name"].strip()
-            ]
+            print(f'\nDiscovering vendors for: "{query}" ...')
+            entities = asyncio.run(discover_vendors_via_llm(query, args.model))
+            preview = ", ".join(entities[:8])
+            suffix = f" ... (+{len(entities) - 8} more)" if len(entities) > 8 else ""
+            print(f"Discovered {len(entities)} companies: {preview}{suffix}\n")
+            output_path = Path(args.output)
 
-    # Apply safety cap
-    if args.max_entities and len(entities) > args.max_entities:
-        print(f"Capping to {args.max_entities} entities per --max-entities (had {len(entities)}).")
-        entities = entities[: args.max_entities]
+        else:  # health-system
+            output_path = Path(
+                args.output if args.output else f"{args.state.lower()}-health-systems.csv"
+            )
+            entities = discover_health_systems(args.state)
 
-    # ---------------------------------------------------------------------------
-    # Cost estimation gate — always shown before any API call is made
-    # ---------------------------------------------------------------------------
+        with open(output_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=["entity_name"])
+            writer.writeheader()
+            for name in entities:
+                writer.writerow({"entity_name": name})
+        print(f"Wrote {len(entities)} entities to {output_path}")
+        return
+
+    # -------------------------------------------------------------------------
+    # research branch — load input CSV and profile entities
+    # -------------------------------------------------------------------------
+    skill = load_skill(skill_name)
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"ERROR: Input file not found: {input_path}", file=sys.stderr)
+        sys.exit(1)
+    with open(input_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if "entity_name" not in (reader.fieldnames or []):
+            print("ERROR: Input CSV must have an 'entity_name' column.", file=sys.stderr)
+            sys.exit(1)
+        entities = [
+            row["entity_name"].strip()
+            for row in reader
+            if row["entity_name"].strip()
+        ]
+
+    # Cost estimation gate
     est_cost_low  = len(entities) * COST_PER_ENTITY_LOW
     est_cost_high = len(entities) * COST_PER_ENTITY_HIGH
     est_minutes   = (len(entities) / args.concurrency) * AVG_SECONDS_PER_ENTITY / 60
@@ -1047,9 +1094,6 @@ def main():
 
     print()
 
-    # ---------------------------------------------------------------------------
-    # Run
-    # ---------------------------------------------------------------------------
     fields = SKILL_FIELDS[skill.name]
     clean_fieldnames = fields
     src_fieldnames   = sources_fieldnames(fields)
@@ -1074,7 +1118,6 @@ def main():
                     clean_writer, sources_writer, clean_f, src_f,
                 )
             )
-
         elif args.concurrency > 1:
             print(f"Running {len(entities)} entities with {args.concurrency} concurrent workers...\n")
             success_count, error_count = asyncio.run(
@@ -1083,15 +1126,11 @@ def main():
                     clean_writer, sources_writer, clean_f, src_f,
                 )
             )
-
         else:
-            # Sequential path — one entity at a time with optional delay.
-            # Run inside a single asyncio.run() so the AsyncAnthropic client
-            # and its httpx session share one event loop for the entire run.
-            print(f"Running {len(entities)} entities sequentially (delay={args.delay}s)...\n")
+            print(f"Running {len(entities)} entities sequentially...\n")
             success_count, error_count = asyncio.run(
                 _run_sequential(
-                    entities, skill, args.model, args.delay,
+                    entities, skill, args.model,
                     clean_writer, sources_writer, clean_f, src_f,
                 )
             )
