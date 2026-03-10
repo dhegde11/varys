@@ -58,7 +58,7 @@ healthtech-intel/
 
 ## Data Flow
 
-**Phase 1 — Discovery** (vendor only, optional):
+**Phase 1 — Discovery** (vendor only — health systems use CMS data instead, optional):
 ```
 Natural language query (interactive prompt or Claude Code UI)
     ↓
