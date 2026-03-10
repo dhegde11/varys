@@ -35,7 +35,7 @@ body:
     id: skill
     attributes:
       label: Which skill?
-      placeholder: "e.g. researching-health-system"
+      placeholder: "e.g. profile-health-system"
     validations:
       required: false
 

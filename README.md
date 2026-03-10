@@ -31,7 +31,7 @@ The assistant will propose a list and let you refine it ("remove Nuance itself",
 Or use a slash command:
 
 ```
-/researching-health-it-vendor Abridge
+/profile-health-it-vendor Abridge
 ```
 
 ### Batch (CLI)
@@ -59,6 +59,9 @@ python healthtech-intel.py research health-system --input sample_health_systems.
 # Discover all hospitals in California from CMS public data, then profile them
 python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
 python healthtech-intel.py research health-system --input ca_hospitals.csv --output ca_results.csv
+
+# Or do both in one shot with the pipeline command
+python healthtech-intel.py pipeline health-system --state CA --output ca_results.csv
 ```
 
 ## Architecture

@@ -18,7 +18,7 @@ Requires `ANTHROPIC_API_KEY` — set it as an environment variable before runnin
 | Interface | Use case | How |
 |---|---|---|
 | **Claude Code discovery agent** | Build a competitor list from natural language, iteratively | Invoke `health-it-vendor-discoverer` agent in Claude Code |
-| **Claude Code research skill** | Profile a single company or health system, interactive | Invoke `researching-health-it-vendor` or `researching-health-system` skill in Claude Code |
+| **Claude Code research skill** | Profile a single company or health system, interactive | Invoke `profile-health-it-vendor` or `profile-health-system` skill in Claude Code |
 | **CLI batch** | CSV → CSV at any scale, or discover + research in one command | `python healthtech-intel.py research vendor --input ... --output ...` |
 
 The same skill files (`.claude/skills/`) drive both Claude Code and CLI. Claude Code
@@ -38,14 +38,14 @@ healthtech-intel/
     │   ├── health-it-vendor-researcher.md   # Claude Code agent — single company profile
     │   └── health-system-researcher.md      # Claude Code agent — single hospital profile
     └── skills/
-        ├── discovering-health-it-competitors/
+        ├── discover-health-it-vendor/
         │   └── SKILL.md                     # Discovery prompt — NL query → company list
-        ├── researching-health-it-vendor/
+        ├── profile-health-it-vendor/
         │   ├── SKILL.md                     # Research prompt + output schema
         │   └── references/
         │       ├── field-definitions.md     # Enum values, confidence rules
         │       └── source-priority.md       # Which URLs/DBs to check per field
-        └── researching-health-system/
+        └── profile-health-system/
             ├── SKILL.md
             └── references/
                 ├── field-definitions.md
@@ -58,7 +58,7 @@ healthtech-intel/
 ```
 Natural language query (interactive prompt or Claude Code UI)
     ↓
-discovering-health-it-competitors skill
+discover-health-it-vendor skill
     ↓
 LLM searches web — market maps, KLAS, Crunchbase, analyst reports
     ↓
@@ -188,7 +188,7 @@ handles the deterministic "research each entity in depth" phase. This keeps Pyth
 guarantees where they matter while adding LLM flexibility where it's needed.
 Both skills now implement this:
 - Health systems: `discover health-system --state XX` seeds from CMS public data
-- Vendors: `discover vendor` (interactive query) seeds via the `discovering-health-it-competitors` skill
+- Vendors: `discover vendor` (interactive query) seeds via the `discover-health-it-vendor` skill
 
 ---
 
@@ -219,7 +219,7 @@ a pre-built CSV.
 
 ### Vendor discovery — LLM-powered (`discover vendor`)
 
-Prompts for a natural language query and uses the `discovering-health-it-competitors`
+Prompts for a natural language query and uses the `discover-health-it-vendor`
 skill to find candidate companies via web search. Use `discover` to write a list to CSV
 first, or `pipeline` to discover and research in one shot:
 
@@ -271,9 +271,9 @@ caps how many API call rounds the model may use per entity. Each round can make 
 **To change it**, edit the frontmatter of the relevant skill file:
 
 ```yaml
-# .claude/skills/researching-health-system/SKILL.md
+# .claude/skills/profile-health-system/SKILL.md
 ---
-name: researching-health-system
+name: profile-health-system
 max_tool_rounds: 5   ← change this
 ---
 ```

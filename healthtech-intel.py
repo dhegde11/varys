@@ -61,7 +61,7 @@ DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 
 # Skill name → output field list mapping (defines CSV schema)
 SKILL_FIELDS = {
-    "researching-health-it-vendor": [
+    "profile-health-it-vendor": [
         "entity_name",
         "product_category",
         "primary_customer",
@@ -77,7 +77,7 @@ SKILL_FIELDS = {
         "headquarters",
         "founded_year",
     ],
-    "researching-health-system": [
+    "profile-health-system": [
         "entity_name",
         "health_system",
         "bed_count",
@@ -274,7 +274,7 @@ READ_FILE_TOOL = {
                 "type": "string",
                 "description": (
                     "Path to the file, relative to the project root. "
-                    "Example: .claude/skills/researching-health-it-vendor/references/field-definitions.md"
+                    "Example: .claude/skills/profile-health-it-vendor/references/field-definitions.md"
                 ),
             }
         },
@@ -294,14 +294,14 @@ async def _heartbeat(prefix: str, interval: float = 60.0) -> None:
 
 async def discover_vendors_via_llm(query: str, model: str) -> list[str]:
     """
-    Call the Anthropic Messages API with the discovering-health-it-competitors
+    Call the Anthropic Messages API with the discover-health-it-vendor
     skill to build a company list from a natural language query.
 
     One-shot (not iterative) — runs a single agentic loop and parses the JSON
     list of company names from the response. Returns a plain list of strings
     ready to feed into the research pipeline.
     """
-    skill = load_skill("discovering-health-it-competitors")
+    skill = load_skill("discover-health-it-vendor")
     prompt = skill.prompt_template.format(query=query)
     client = AsyncAnthropic(timeout=600.0)
     messages = [{"role": "user", "content": prompt}]
@@ -1126,8 +1126,8 @@ def main():
     # Infer skill name from target subcommand
     # -------------------------------------------------------------------------
     skill_name = {
-        "vendor": "researching-health-it-vendor",
-        "health-system": "researching-health-system",
+        "vendor": "profile-health-it-vendor",
+        "health-system": "profile-health-system",
     }[args.target]
 
     # Guard concurrency early so pipeline and research both get a clean error message.

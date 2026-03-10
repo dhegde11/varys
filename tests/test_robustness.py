@@ -19,7 +19,7 @@ discover_vendors_via_llm = _mod.discover_vendors_via_llm
 research_entity_async    = _mod.research_entity_async
 
 
-def _make_skill(name="researching-health-it-vendor"):
+def _make_skill(name="profile-health-it-vendor"):
     Skill = _mod.Skill
     return Skill(
         name=name, description="", mode="vendor",
@@ -31,7 +31,7 @@ def _make_skill(name="researching-health-it-vendor"):
 def _make_discover_skill():
     Skill = _mod.Skill
     return Skill(
-        name="discovering-health-it-competitors", description="", mode="vendor",
+        name="discover-health-it-vendor", description="", mode="vendor",
         max_tool_rounds=5,
         prompt_template="Find companies for: {query}.",
     )
@@ -141,7 +141,7 @@ class TestExtrasactionRaises:
         not silently drop it. This guards against field-name typos in callers.
         """
         skill = MagicMock()
-        skill.name = "researching-health-it-vendor"
+        skill.name = "profile-health-it-vendor"
         skill.mode = "vendor"
 
         async def fake_sequential(entities, skill, model, clean_writer, sources_writer, clean_f, src_f):
@@ -165,7 +165,7 @@ class TestExtrasactionRaises:
     def test_unexpected_field_in_clean_row_raises(self, tmp_path):
         """Same guard for the clean (non-sources) writer."""
         skill = MagicMock()
-        skill.name = "researching-health-it-vendor"
+        skill.name = "profile-health-it-vendor"
         skill.mode = "vendor"
 
         async def fake_sequential(entities, skill, model, clean_writer, sources_writer, clean_f, src_f):

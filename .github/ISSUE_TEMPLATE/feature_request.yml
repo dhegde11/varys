@@ -24,9 +24,9 @@ body:
       label: Area
       options:
         - healthtech-intel.py (CLI / batch runner)
-        - Skill prompt (researching-health-system)
-        - Skill prompt (researching-health-it-vendor)
-        - Skill prompt (discovering-health-it-competitors)
+        - Skill prompt (profile-health-system)
+        - Skill prompt (profile-health-it-vendor)
+        - Skill prompt (discover-health-it-vendor)
         - Documentation
         - Other
     validations:

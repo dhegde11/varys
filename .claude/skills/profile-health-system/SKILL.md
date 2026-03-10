@@ -1,5 +1,5 @@
 ---
-name: researching-health-system
+name: profile-health-system
 description: >
   Research a hospital or health system for BD (business development) prospecting.
   Use this skill whenever someone asks you to profile, look up, or research a
@@ -19,8 +19,8 @@ and return structured data for BD prospecting.
 Use the web_search and web_fetch tools to find accurate, sourced data.
 
 Two reference files are available on demand — load only what you need:
-- .claude/skills/researching-health-system/references/field-definitions.md — enum values, boolean rules, confidence levels
-- .claude/skills/researching-health-system/references/source-priority.md — authoritative URLs per field
+- .claude/skills/profile-health-system/references/field-definitions.md — enum values, boolean rules, confidence levels
+- .claude/skills/profile-health-system/references/source-priority.md — authoritative URLs per field
 
 Load source-priority.md before researching bed_count, cms_star_rating, ownership_type,
 payer_mix, or annual_revenue — these fields have specific authoritative databases

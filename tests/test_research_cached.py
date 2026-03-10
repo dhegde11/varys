@@ -8,11 +8,11 @@ so you can iterate on round 2+ bugs without burning API credits on round 1.
 
 Usage:
     # Single entity (quick):
-    python3 tests/test_research_cached.py --skill researching-health-it-vendor --entity "Ambience Healthcare"
-    python3 tests/test_research_cached.py --skill researching-health-system --entity "Penn Medicine"
+    python3 tests/test_research_cached.py --skill profile-health-it-vendor --entity "Ambience Healthcare"
+    python3 tests/test_research_cached.py --skill profile-health-system --entity "Penn Medicine"
 
     # Multiple entities from CSV:
-    python3 tests/test_research_cached.py --skill researching-health-it-vendor --input tests/test_vendor.csv
+    python3 tests/test_research_cached.py --skill profile-health-it-vendor --input tests/test_vendor.csv
 
 Clear cache for a fresh run:
     rm -rf .cache/
@@ -142,7 +142,7 @@ async def research_with_cache(entity_name: str, skill_name: str, model: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--skill", required=True, choices=["researching-health-it-vendor", "researching-health-system"])
+    parser.add_argument("--skill", required=True, choices=["profile-health-it-vendor", "profile-health-system"])
     parser.add_argument("--entity", help="Single entity name to research (e.g. \"Ambience Healthcare\")")
     parser.add_argument("--input", help="CSV file with entity_name column (alternative to --entity)")
     parser.add_argument("--model", default="claude-sonnet-4-6")

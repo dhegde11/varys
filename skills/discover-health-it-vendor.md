@@ -1,5 +1,5 @@
 ---
-name: discovering-health-it-competitors
+name: discover-health-it-vendor
 description: >
   Discover health IT companies matching a natural language query. Use this skill
   whenever someone wants to find competitors, alternatives, or a list of companies

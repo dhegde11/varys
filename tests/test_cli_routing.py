@@ -37,7 +37,7 @@ def _make_input_csv(tmp_path, names):
 
 def _mock_skill():
     skill = MagicMock()
-    skill.name = "researching-health-it-vendor"
+    skill.name = "profile-health-it-vendor"
     return skill
 
 
@@ -103,13 +103,13 @@ class TestSkillNameLookup:
             patch.object(_mod, "_run_research"),
         ):
             main()
-        mock_load.assert_called_once_with("researching-health-it-vendor")
+        mock_load.assert_called_once_with("profile-health-it-vendor")
 
     def test_research_health_system_resolves_health_system_skill(self, tmp_path, capsys):
         inp = _make_input_csv(tmp_path, ["Mayo Clinic"])
         out = str(tmp_path / "out.csv")
         skill = MagicMock()
-        skill.name = "researching-health-system"
+        skill.name = "profile-health-system"
         with (
             patch("sys.argv", [
                 "healthtech-intel.py", "research", "health-system",
@@ -120,7 +120,7 @@ class TestSkillNameLookup:
             patch.object(_mod, "_run_research"),
         ):
             main()
-        mock_load.assert_called_once_with("researching-health-system")
+        mock_load.assert_called_once_with("profile-health-system")
 
 
 # ---------------------------------------------------------------------------

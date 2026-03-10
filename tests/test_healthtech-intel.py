@@ -72,7 +72,7 @@ class TestParseJsonResponse:
 
 class TestSourcesFieldnames:
     def test_vendor_fields_expanded(self):
-        fields = SKILL_FIELDS["researching-health-it-vendor"]
+        fields = SKILL_FIELDS["profile-health-it-vendor"]
         names = sources_fieldnames(fields)
         # entity_name appears once at start
         assert names[0] == "entity_name"
@@ -87,7 +87,7 @@ class TestSourcesFieldnames:
         assert names[-1] == "research_notes"
 
     def test_health_system_fields_expanded(self):
-        fields = SKILL_FIELDS["researching-health-system"]
+        fields = SKILL_FIELDS["profile-health-system"]
         names = sources_fieldnames(fields)
         assert "ehr_vendor" in names
         assert "ehr_vendor_source" in names
@@ -99,7 +99,7 @@ class TestSourcesFieldnames:
 # profile_to_sources_row
 # ---------------------------------------------------------------------------
 
-VENDOR_FIELDS = SKILL_FIELDS["researching-health-it-vendor"]
+VENDOR_FIELDS = SKILL_FIELDS["profile-health-it-vendor"]
 
 def _full_vendor_profile():
     return {
@@ -212,7 +212,7 @@ SKILLS_ROOT = Path(__file__).parent.parent / ".claude" / "skills"
 class TestExecuteReadFile:
     def test_valid_skill_reference_file(self):
         result = _execute_read_file(
-            ".claude/skills/researching-health-it-vendor/references/field-definitions.md"
+            ".claude/skills/profile-health-it-vendor/references/field-definitions.md"
         )
         assert "ERROR" not in result
         assert len(result) > 0
@@ -228,7 +228,7 @@ class TestExecuteReadFile:
 
     def test_nonexistent_file_returns_error(self):
         result = _execute_read_file(
-            ".claude/skills/researching-health-it-vendor/references/nonexistent.md"
+            ".claude/skills/profile-health-it-vendor/references/nonexistent.md"
         )
         assert result.startswith("ERROR")
         assert "not found" in result.lower() or "File not found" in result
@@ -250,7 +250,7 @@ class TestPauseTurnHandling:
     def _make_skill(self):
         Skill = _mod.Skill
         return Skill(
-            name="researching-health-it-vendor",
+            name="profile-health-it-vendor",
             description="",
             mode="vendor",
             max_tool_rounds=5,
@@ -331,7 +331,7 @@ class TestCachedPromptStructure:
         Skill = _mod.Skill
 
         skill = Skill(
-            name="researching-health-it-vendor",
+            name="profile-health-it-vendor",
             description="",
             mode="vendor",
             max_tool_rounds=5,
@@ -369,7 +369,7 @@ class TestCachedPromptStructure:
         Skill = _mod.Skill
 
         skill = Skill(
-            name="researching-health-it-vendor",
+            name="profile-health-it-vendor",
             description="",
             mode="vendor",
             max_tool_rounds=5,
@@ -407,7 +407,7 @@ class TestCachedPromptStructure:
         Skill = _mod.Skill
 
         skill = Skill(
-            name="researching-health-it-vendor",
+            name="profile-health-it-vendor",
             description="",
             mode="vendor",
             max_tool_rounds=5,
@@ -454,22 +454,22 @@ class TestCachedPromptStructure:
 
 class TestOutputSchemas:
     def test_vendor_schema_has_all_fields(self):
-        schema = SKILL_OUTPUT_SCHEMAS["researching-health-it-vendor"]
+        schema = SKILL_OUTPUT_SCHEMAS["profile-health-it-vendor"]
         assert schema["type"] == "object"
         assert schema["additionalProperties"] is False
-        for field in SKILL_FIELDS["researching-health-it-vendor"][1:]:
+        for field in SKILL_FIELDS["profile-health-it-vendor"][1:]:
             assert field in schema["properties"], f"Missing field: {field}"
         assert "entity_name" in schema["properties"]
         assert "research_notes" in schema["properties"]
 
     def test_health_system_schema_has_all_fields(self):
-        schema = SKILL_OUTPUT_SCHEMAS["researching-health-system"]
+        schema = SKILL_OUTPUT_SCHEMAS["profile-health-system"]
         assert schema["additionalProperties"] is False
-        for field in SKILL_FIELDS["researching-health-system"][1:]:
+        for field in SKILL_FIELDS["profile-health-system"][1:]:
             assert field in schema["properties"], f"Missing field: {field}"
 
     def test_field_value_has_required_properties(self):
-        schema = SKILL_OUTPUT_SCHEMAS["researching-health-it-vendor"]
+        schema = SKILL_OUTPUT_SCHEMAS["profile-health-it-vendor"]
         fv = schema["$defs"]["FieldValue"]
         assert "value" in fv["properties"]
         assert "source_url" in fv["properties"]
@@ -484,7 +484,7 @@ class TestOutputSchemas:
         Skill = _mod.Skill
 
         skill = Skill(
-            name="researching-health-it-vendor",
+            name="profile-health-it-vendor",
             description="",
             mode="vendor",
             max_tool_rounds=5,

@@ -6,9 +6,9 @@ These are the skill files that power healthtech-intel. Each skill defines a stru
 
 | File | What it does |
 |---|---|
-| [`researching-health-system.md`](researching-health-system.md) | Profile a hospital or health system for BD prospecting |
-| [`researching-health-it-vendor.md`](researching-health-it-vendor.md) | Profile a health IT company for competitive intelligence |
-| [`discovering-health-it-competitors.md`](discovering-health-it-competitors.md) | Discover companies matching a natural language query |
+| [`profile-health-system.md`](profile-health-system.md) | Profile a hospital or health system for BD prospecting |
+| [`profile-health-it-vendor.md`](profile-health-it-vendor.md) | Profile a health IT company for competitive intelligence |
+| [`discover-health-it-vendor.md`](discover-health-it-vendor.md) | Discover companies matching a natural language query |
 
 ## How to use with AI assistants
 
