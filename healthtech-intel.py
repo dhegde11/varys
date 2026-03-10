@@ -734,8 +734,9 @@ async def _run_batches_api(
     print(f"Batch submitted: {batch_id}")
     print("Polling for results (this may take minutes to ~1 hour)...\n")
 
-    # Poll until batch ends
-    poll_interval = 3600
+    # Poll until batch ends — adaptive: start fast, back off to 5 min cap.
+    poll_interval = 30   # seconds: initial
+    poll_max      = 300  # seconds: cap at 5 minutes
     while True:
         await asyncio.sleep(poll_interval)
         batch = await client.messages.batches.retrieve(batch_id)
@@ -747,6 +748,7 @@ async def _run_batches_api(
         )
         if batch.processing_status == "ended":
             break
+        poll_interval = min(poll_interval * 2, poll_max)
 
     print(f"\nBatch complete. Retrieving results...")
     success_count = 0

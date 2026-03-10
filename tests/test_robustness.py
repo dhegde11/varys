@@ -209,3 +209,25 @@ class TestLoadSkillYamlErrors:
             with pytest.raises(SystemExit) as exc:
                 _mod.load_skill("test-skill")
         assert exc.value.code != 0
+
+
+class TestBatchPolling:
+    def test_first_poll_interval_is_not_one_hour(self):
+        """Initial poll interval must be much less than 3600s."""
+        import inspect
+        src = inspect.getsource(_mod._run_batches_api)
+        assert "poll_interval = 3600" not in src, (
+            "poll_interval is hardcoded to 3600s — first poll waits 1 full hour"
+        )
+
+    def test_poll_interval_is_30_seconds(self):
+        """Initial poll interval must be 30 seconds."""
+        import inspect
+        src = inspect.getsource(_mod._run_batches_api)
+        assert "poll_interval = 30" in src
+
+    def test_poll_max_is_300_seconds(self):
+        """Poll cap must be 300 seconds (5 minutes)."""
+        import inspect
+        src = inspect.getsource(_mod._run_batches_api)
+        assert "poll_max" in src and "300" in src
