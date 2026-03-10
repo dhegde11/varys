@@ -1171,6 +1171,9 @@ def main():
                 sys.exit(1)
             print(f'\nDiscovering vendors for: "{query}" ...')
             entities = asyncio.run(discover_vendors_via_llm(query, args.model))
+            if not entities:
+                print("ERROR: Discovery returned no companies. Try a broader query.", file=sys.stderr)
+                sys.exit(1)
             preview = ", ".join(entities[:8])
             suffix = f" ... (+{len(entities) - 8} more)" if len(entities) > 8 else ""
             print(f"Discovered {len(entities)} companies: {preview}{suffix}\n")
@@ -1178,6 +1181,9 @@ def main():
 
         else:  # health-system
             entities = discover_health_systems(args.state)
+            if not entities:
+                print(f"ERROR: No hospitals found for state '{args.state}'. Check the state code.", file=sys.stderr)
+                sys.exit(1)
             output_path = Path(
                 args.output if args.output else f"{args.state.lower()}-pipeline-results.csv"
             )
@@ -1232,6 +1238,9 @@ def main():
             for row in reader
             if row["entity_name"].strip()
         ]
+    if not entities:
+        print("ERROR: Input CSV contains no entity names.", file=sys.stderr)
+        sys.exit(1)
 
     # Cost estimation gate
     est_cost_low  = len(entities) * COST_PER_ENTITY_LOW
