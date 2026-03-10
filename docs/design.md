@@ -29,19 +29,23 @@ invokes them interactively; Python loads them as prompt templates for batch runs
 ```
 healthtech-intel/
 ├── healthtech-intel.py                  # Python orchestrator — CLI batch runner
-├── requirements.txt                   # anthropic>=0.40.0, pyyaml>=6.0
-├── sample_vendors.csv                 # Sample health IT vendor names
-├── sample_health_systems.csv          # Sample health system names
-└── .claude/
+├── requirements.txt                     # anthropic>=0.40.0, pyyaml>=6.0
+├── sample_vendors.csv                   # Sample health IT vendor names
+├── sample_health_systems.csv            # Sample health system names
+├── skills/                              # Flat skill files — load into any AI assistant
+│   ├── discover-health-it-vendor.md     # Vendor discovery prompt (ChatGPT, Gemini, etc.)
+│   ├── profile-health-it-vendor.md      # Vendor profiling prompt
+│   └── profile-health-system.md         # Health system profiling prompt
+└── .claude/                             # Claude Code–specific files
     ├── agents/
     │   ├── health-it-vendor-discoverer.md   # Claude Code agent — build competitor lists
     │   ├── health-it-vendor-researcher.md   # Claude Code agent — single company profile
     │   └── health-system-researcher.md      # Claude Code agent — single hospital profile
-    └── skills/
+    └── skills/                              # Extended skills with reference files
         ├── discover-health-it-vendor/
         │   └── SKILL.md                     # Discovery prompt — NL query → company list
         ├── profile-health-it-vendor/
-        │   ├── SKILL.md                     # Research prompt + output schema
+        │   ├── SKILL.md                     # Profiling prompt + output schema
         │   └── references/
         │       ├── field-definitions.md     # Enum values, confidence rules
         │       └── source-priority.md       # Which URLs/DBs to check per field
