@@ -59,8 +59,8 @@ list before saving it.
    ```
    Saved 14 companies to discovered_competitors.csv.
 
-   To research each company in depth, run:
-   python healthtech-intel.py research vendor \
+   To profile each company in depth, run:
+   python healthtech-intel.py profile vendor \
      --input discovered_competitors.csv \
      --output results.csv
    ```
@@ -70,6 +70,6 @@ list before saving it.
 - The discovery skill does web research — it finds real companies from live sources,
   not from training data alone. Results may take 30–60 seconds.
 - For batch processing of many companies already known, the user should skip
-  discovery and use healthtech-intel.py research vendor directly with their own CSV.
+  discovery and use healthtech-intel.py profile vendor directly with their own CSV.
 - If the user provides a list of companies (not a query), skip discovery and
   offer to save their list directly as a CSV.

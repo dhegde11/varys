@@ -19,7 +19,7 @@ Requires `ANTHROPIC_API_KEY` — set it as an environment variable before runnin
 |---|---|---|
 | **Claude Code discovery agent** | Build a competitor list from natural language, iteratively | Invoke `health-it-vendor-discoverer` agent in Claude Code |
 | **Claude Code research skill** | Profile a single company or health system, interactive | Invoke `profile-health-it-vendor` or `profile-health-system` skill in Claude Code |
-| **CLI batch** | CSV → CSV at any scale, or discover + research in one command | `python healthtech-intel.py research vendor --input ... --output ...` |
+| **CLI batch** | CSV → CSV at any scale, or discover + profile in one command | `python healthtech-intel.py profile vendor --input ... --output ...` |
 
 The same skill files (`.claude/skills/`) drive both Claude Code and CLI. Claude Code
 invokes them interactively; Python loads them as prompt templates for batch runs.
@@ -224,11 +224,11 @@ skill to find candidate companies via web search. Use `discover` to write a list
 first, or `pipeline` to discover and research in one shot:
 
 ```bash
-# Two-step: discover then research
+# Two-step: discover then profile
 python healthtech-intel.py discover vendor --output vendors.csv
-python healthtech-intel.py research vendor --input vendors.csv --output results.csv
+python healthtech-intel.py profile vendor --input vendors.csv --output results.csv
 
-# One-shot: discover + research (interactive query prompt)
+# One-shot: discover + profile (interactive query prompt)
 python healthtech-intel.py pipeline vendor --output results.csv
 ```
 
@@ -251,7 +251,7 @@ of hospital names ready for the research pipeline.
 
 ```bash
 python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
-python healthtech-intel.py research health-system --input ca_hospitals.csv --output ca_results.csv
+python healthtech-intel.py profile health-system --input ca_hospitals.csv --output ca_results.csv
 ```
 
 This enables prospecting an entire state's hospital landscape without maintaining

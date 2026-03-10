@@ -1,10 +1,11 @@
 # healthtech-intel
 
-A market intelligence tool for the health IT ecosystem with three capabilities:
+A market intelligence tool for the health IT ecosystem with four capabilities:
 
-- **Vendor discovery** — Build a competitor list from natural language. "Find AI scribe competitors to Nuance" → curated company list → CSV ready for research.
-- **Vendor research** — Profile health IT companies for competitive analysis. Who are they, what do they sell, who have they sold to, how are they funded, and what is their regulatory status?
-- **Health system research** — Profile hospitals and health systems for BD prospecting. Built-in discovery by US state — no input list needed. A free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/), powered by the public CMS API.
+- **Vendor discovery** — Build a competitor list from natural language. "Find AI scribe competitors to Nuance" → curated company list → CSV ready for profiling.
+- **Vendor profiling** — Profile health IT companies for competitive analysis. Who are they, what do they sell, who have they sold to, how are they funded, and what is their regulatory status?
+- **Health system discovery** — Discover hospitals and health systems by US state from the public CMS dataset. No input list needed — a free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/).
+- **Health system profiling** — Profile hospitals and health systems for BD prospecting. EHR vendor, bed count, CMS star rating, payer mix, CIO name, and more.
 
 Two ways to use this tool:
 
@@ -43,24 +44,20 @@ pip install -r requirements.txt
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-...
 
-# Discover competitors via natural language (prompts for query), then profile them
+# --- Vendors ---
+# Discover competitors via natural language (prompts for query)
 python healthtech-intel.py discover vendor --output discovered_vendors.csv
-python healthtech-intel.py research vendor --input discovered_vendors.csv --output results.csv
-
-# Or do both in one shot with the pipeline command
+# Profile vendors from a list
+python healthtech-intel.py profile vendor --input discovered_vendors.csv --output results.csv
+# Or do both in one shot
 python healthtech-intel.py pipeline vendor --output results.csv
 
-# Profile vendors from a known list
-python healthtech-intel.py research vendor --input sample_vendors.csv --output results.csv
-
-# Profile health systems from a list
-python healthtech-intel.py research health-system --input sample_health_systems.csv --output results.csv
-
-# Discover all hospitals in California from CMS public data, then profile them
+# --- Health systems ---
+# Discover all hospitals in California from CMS public data
 python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
-python healthtech-intel.py research health-system --input ca_hospitals.csv --output ca_results.csv
-
-# Or do both in one shot with the pipeline command
+# Profile health systems from a list
+python healthtech-intel.py profile health-system --input ca_hospitals.csv --output ca_results.csv
+# Or do both in one shot
 python healthtech-intel.py pipeline health-system --state CA --output ca_results.csv
 ```
 
@@ -120,10 +117,10 @@ Every run writes two CSVs:
 ```
 healthtech-intel.py discover vendor       # prompts for query → writes entity CSV
 healthtech-intel.py discover health-system --state CA   # CMS data → writes entity CSV
-healthtech-intel.py research vendor --input vendors.csv
-healthtech-intel.py research health-system --input hospitals.csv
-healthtech-intel.py pipeline vendor       # discover + research in one shot (interactive query)
-healthtech-intel.py pipeline health-system --state CA   # discover + research in one shot
+healthtech-intel.py profile vendor --input vendors.csv
+healthtech-intel.py profile health-system --input hospitals.csv
+healthtech-intel.py pipeline vendor       # discover + profile in one shot (interactive query)
+healthtech-intel.py pipeline health-system --state CA   # discover + profile in one shot
 ```
 
 **`discover` flags:**
@@ -134,11 +131,11 @@ healthtech-intel.py pipeline health-system --state CA   # discover + research in
 | `--output` | both | see below | Output CSV. Default: `vendor-results.csv` or `<state>-health-systems.csv`. |
 | `--model` | `vendor` | `claude-sonnet-4-6` | Anthropic model. Override via `ANTHROPIC_MODEL` env var. |
 
-**`research` and `pipeline` flags:**
+**`profile` and `pipeline` flags:**
 
 | Flag | Default | Description |
 |---|---|---|
-| `--input` | _(required for research)_ | Input CSV with `entity_name` column. |
+| `--input` | _(required for profile)_ | Input CSV with `entity_name` column. |
 | `--output` | see below | Clean output CSV. A `_sources.csv` is auto-written alongside it. |
 | `--batch` | false | Use Messages Batches API (~50% cost discount, async). |
 | `--concurrency` | `5` | Number of parallel API calls. Recommended range: 5–10. |
@@ -168,7 +165,7 @@ The CLI shows an estimate and requires confirmation before any API call.
 **`--batch` uses the [Messages Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) for a ~50% cost discount.** Results are processed asynchronously — the CLI polls until complete, which can take minutes to hours depending on queue depth. Use it for large lists where cost matters more than turnaround time.
 
 ```bash
-python healthtech-intel.py research vendor --input vendors.csv --output results.csv --batch
+python healthtech-intel.py profile vendor --input vendors.csv --output results.csv --batch
 ```
 
 > Prices above are estimates only. Model pricing changes frequently. Always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.

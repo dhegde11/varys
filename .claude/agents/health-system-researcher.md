@@ -18,14 +18,14 @@ If the user provides a list of hospitals or a CSV file path, inform them that
 batch processing should be run via the CLI:
 
 ```
-python healthtech-intel.py research health-system --input hospitals.csv --output results.csv
+python healthtech-intel.py profile health-system --input hospitals.csv --output results.csv
 ```
 
 For discovering hospitals in a specific state from CMS data:
 
 ```
 python healthtech-intel.py discover health-system --state <STATE> --output hospitals.csv
-python healthtech-intel.py research health-system --input hospitals.csv --output results.csv
+python healthtech-intel.py profile health-system --input hospitals.csv --output results.csv
 ```
 
 For a single hospital, proceed with the skill directly.

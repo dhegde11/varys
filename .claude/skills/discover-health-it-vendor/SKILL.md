@@ -78,5 +78,5 @@ header `entity_name` and one company name per row. Then show the user the
 command to run the full research pipeline:
 
 ```
-python healthtech-intel.py research vendor --input discovered_competitors.csv --output results.csv
+python healthtech-intel.py profile vendor --input discovered_competitors.csv --output results.csv
 ```

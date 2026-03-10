@@ -20,10 +20,10 @@ Usage:
     python healthtech-intel.py discover health-system --state CA --output ca-hospitals.csv
 
     # Profile health IT vendors
-    python healthtech-intel.py research vendor --input vendors.csv --output results.csv
+    python healthtech-intel.py profile vendor --input vendors.csv --output results.csv
 
     # Profile health systems
-    python healthtech-intel.py research health-system --input ca-hospitals.csv --output results.csv
+    python healthtech-intel.py profile health-system --input ca-hospitals.csv --output results.csv
 """
 
 import argparse
@@ -1003,15 +1003,15 @@ def main():
     )
 
     # -------------------------------------------------------------------------
-    # research
+    # profile
     # -------------------------------------------------------------------------
-    research_parser = subparsers.add_parser(
-        "research", help="Profile entities from an input CSV."
+    profile_parser = subparsers.add_parser(
+        "profile", help="Profile entities from an input CSV."
     )
-    research_sub = research_parser.add_subparsers(dest="target", required=True)
+    profile_sub = profile_parser.add_subparsers(dest="target", required=True)
 
-    # research vendor
-    rv = research_sub.add_parser(
+    # profile vendor
+    rv = profile_sub.add_parser(
         "vendor", help="Profile health IT vendors for competitive intelligence."
     )
     rv.add_argument("--input", required=True, help="Input CSV with entity_name column.")
@@ -1042,8 +1042,8 @@ def main():
         help="Skip cost confirmation prompt (for CI / scripted use).",
     )
 
-    # research health-system
-    rhs = research_sub.add_parser(
+    # profile health-system
+    rhs = profile_sub.add_parser(
         "health-system", help="Profile health systems for BD prospecting."
     )
     rhs.add_argument("--input", required=True, help="Input CSV with entity_name column.")
@@ -1130,7 +1130,7 @@ def main():
         "health-system": "profile-health-system",
     }[args.target]
 
-    # Guard concurrency early so pipeline and research both get a clean error message.
+    # Guard concurrency early so pipeline and profile both get a clean error message.
     if getattr(args, "concurrency", None) is not None and args.concurrency < 1:
         print("ERROR: --concurrency must be at least 1.", file=sys.stderr)
         sys.exit(1)
@@ -1230,7 +1230,7 @@ def main():
         return
 
     # -------------------------------------------------------------------------
-    # research branch — load input CSV and profile entities
+    # profile branch — load input CSV and profile entities
     # -------------------------------------------------------------------------
     if not os.environ.get("ANTHROPIC_API_KEY"):
         print("ERROR: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
