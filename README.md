@@ -7,7 +7,7 @@ A market intelligence tool for the health IT ecosystem with four capabilities:
 - **Health system discovery** — Discover hospitals and health systems by US state from the public CMS dataset. No input list needed — a free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/).
 - **Health system profiling** — Profile hospitals and health systems for BD prospecting. EHR vendor, bed count, CMS star rating, payer mix, CIO name, and more.
 
-![healthtech-intel demo](https://github.com/user-attachments/assets/42710642-6c8f-43dc-addc-522c7ae22aa3)
+<img src="https://github.com/user-attachments/assets/42710642-6c8f-43dc-addc-522c7ae22aa3" width="600"/>
 
 Two ways to use this tool:
 
