@@ -70,7 +70,7 @@ After presenting the list, invite the user to refine it:
 
 > "I found N companies. You can ask me to: add specific companies, remove any,
 > narrow by funding stage, EHR integration, or customer segment, or save this
-> list as a CSV to use with healthtech-intel.py."
+> list as a CSV to use with varys.py."
 
 When the user says "save", "looks good", or "that's the list", write a file
 named `discovered_competitors.csv` in the project root with a single column
@@ -78,5 +78,5 @@ header `entity_name` and one company name per row. Then show the user the
 command to run the full research pipeline:
 
 ```
-python healthtech-intel.py profile vendor --input discovered_competitors.csv --output results.csv
+python varys.py profile vendor --input discovered_competitors.csv --output results.csv
 ```

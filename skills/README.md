@@ -1,6 +1,6 @@
 # Skills
 
-These are the skill files that power healthtech-intel. Each skill defines a structured research workflow — what to look for, how to prioritize sources, how to handle missing data, and what schema to return. They work with any LLM that can execute web searches.
+These are the skill files that power Varys. Each skill defines a structured research workflow — what to look for, how to prioritize sources, how to handle missing data, and what schema to return. They work with any LLM that can execute web searches.
 
 ## What's here
 

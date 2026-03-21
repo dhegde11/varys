@@ -1,5 +1,5 @@
 """
-Tests for robustness / error-handling behaviour in healthtech-intel.py.
+Tests for robustness / error-handling behaviour in varys.py.
 All API calls mocked — no credits needed.
 """
 import asyncio
@@ -9,8 +9,8 @@ import pytest
 import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
-    "healthtech_intel",
-    Path(__file__).parent.parent / "healthtech-intel.py",
+    "varys",
+    Path(__file__).parent.parent / "varys.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
@@ -197,7 +197,7 @@ class TestLoadSkillYamlErrors:
     def test_empty_yaml_frontmatter_exits_cleanly(self, tmp_path):
         """Empty YAML frontmatter (---\\n---\\nbody) must sys.exit(1) with clear message, not KeyError."""
         base = self._make_skill_dir(tmp_path, "---\n---\nPrompt body here.\n")
-        with patch.object(_mod, "__file__", str(base / "healthtech-intel.py")):
+        with patch.object(_mod, "__file__", str(base / "varys.py")):
             with pytest.raises(SystemExit) as exc:
                 _mod.load_skill("test-skill")
         assert exc.value.code != 0
@@ -205,7 +205,7 @@ class TestLoadSkillYamlErrors:
     def test_missing_name_field_exits_cleanly(self, tmp_path):
         """YAML without 'name' key must sys.exit(1) with clear message, not KeyError."""
         base = self._make_skill_dir(tmp_path, "---\ndescription: foo\n---\nPrompt body.\n")
-        with patch.object(_mod, "__file__", str(base / "healthtech-intel.py")):
+        with patch.object(_mod, "__file__", str(base / "varys.py")):
             with pytest.raises(SystemExit) as exc:
                 _mod.load_skill("test-skill")
         assert exc.value.code != 0

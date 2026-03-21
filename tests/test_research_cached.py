@@ -25,12 +25,12 @@ import re
 import sys
 from pathlib import Path
 
-# healthtech-intel.py has a hyphen so standard import doesn't work; use importlib
+# varys.py has a hyphen so standard import doesn't work; use importlib
 import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
-    "healthtech_intel",
-    Path(__file__).parent.parent / "healthtech-intel.py",
+    "varys",
+    Path(__file__).parent.parent / "varys.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
@@ -94,7 +94,7 @@ def _load_cache(skill_name, entity_name):
 
 
 # ---------------------------------------------------------------------------
-# Main research loop (same logic as healthtech-intel.py but with caching)
+# Main research loop (same logic as varys.py but with caching)
 # ---------------------------------------------------------------------------
 
 async def research_with_cache(entity_name: str, skill_name: str, model: str):

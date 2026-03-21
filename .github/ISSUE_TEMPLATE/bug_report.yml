@@ -18,7 +18,7 @@ body:
     id: command
     attributes:
       label: Command you ran
-      description: The exact `python healthtech-intel.py ...` command or Claude Code invocation.
+      description: The exact `python varys.py ...` command or Claude Code invocation.
       render: shell
     validations:
       required: true

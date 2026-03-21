@@ -14,16 +14,16 @@ Usage:
     export ANTHROPIC_API_KEY=sk-ant-...
 
     # Discover health IT vendors (interactive query prompt)
-    python healthtech-intel.py discover vendor --output vendors.csv
+    python varys.py discover vendor --output vendors.csv
 
     # Discover health systems by state (seeds from CMS public data)
-    python healthtech-intel.py discover health-system --state CA --output ca-hospitals.csv
+    python varys.py discover health-system --state CA --output ca-hospitals.csv
 
     # Profile health IT vendors
-    python healthtech-intel.py profile vendor --input vendors.csv --output results.csv
+    python varys.py profile vendor --input vendors.csv --output results.csv
 
     # Profile health systems
-    python healthtech-intel.py profile health-system --input ca-hospitals.csv --output results.csv
+    python varys.py profile health-system --input ca-hospitals.csv --output results.csv
 """
 
 import argparse
@@ -1017,8 +1017,8 @@ def main():
     rv.add_argument("--input", required=True, help="Input CSV with entity_name column.")
     rv.add_argument(
         "--output",
-        default="healthtech-intel-vendor-research-results.csv",
-        help="Clean output CSV (default: healthtech-intel-vendor-research-results.csv).",
+        default="varys-vendor-research-results.csv",
+        help="Clean output CSV (default: varys-vendor-research-results.csv).",
     )
     rv.add_argument(
         "--batch",
@@ -1049,8 +1049,8 @@ def main():
     rhs.add_argument("--input", required=True, help="Input CSV with entity_name column.")
     rhs.add_argument(
         "--output",
-        default="healthtech-intel-health-system-research-results.csv",
-        help="Clean output CSV (default: healthtech-intel-health-system-research-results.csv).",
+        default="varys-health-system-research-results.csv",
+        help="Clean output CSV (default: varys-health-system-research-results.csv).",
     )
     rhs.add_argument(
         "--batch",

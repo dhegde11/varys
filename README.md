@@ -1,4 +1,4 @@
-# healthtech-intel
+# Varys
 
 A market intelligence tool for the health IT ecosystem with four capabilities:
 
@@ -17,7 +17,7 @@ Two ways to use this tool:
 
 **One at a time (interactive)** — Load a skill file into any AI assistant (Claude, ChatGPT, Gemini, etc.) and research entities conversationally. Ask follow-up questions, refine results, and build a competitor list interactively before exporting.
 
-**Batch (CLI)** — Run `healthtech-intel.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
+**Batch (CLI)** — Run `varys.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
 
 ## Useful for
 
@@ -52,19 +52,19 @@ export ANTHROPIC_API_KEY=sk-ant-...
 
 # --- Vendors ---
 # Discover competitors via natural language (prompts for query)
-python healthtech-intel.py discover vendor --output discovered_vendors.csv
+python varys.py discover vendor --output discovered_vendors.csv
 # Profile vendors from a list
-python healthtech-intel.py profile vendor --input discovered_vendors.csv --output results.csv
+python varys.py profile vendor --input discovered_vendors.csv --output results.csv
 # Or do both in one shot
-python healthtech-intel.py pipeline vendor --output results.csv
+python varys.py pipeline vendor --output results.csv
 
 # --- Health systems ---
 # Discover all hospitals in California from CMS public data
-python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
+python varys.py discover health-system --state CA --output ca_hospitals.csv
 # Profile health systems from a list
-python healthtech-intel.py profile health-system --input ca_hospitals.csv --output ca_results.csv
+python varys.py profile health-system --input ca_hospitals.csv --output ca_results.csv
 # Or do both in one shot
-python healthtech-intel.py pipeline health-system --state CA --output ca_results.csv
+python varys.py pipeline health-system --state CA --output ca_results.csv
 ```
 
 ## Architecture
@@ -121,12 +121,12 @@ Every run writes two CSVs:
 ## CLI subcommands
 
 ```
-healthtech-intel.py discover vendor       # prompts for query → writes entity CSV
-healthtech-intel.py discover health-system --state CA   # CMS data → writes entity CSV
-healthtech-intel.py profile vendor --input vendors.csv
-healthtech-intel.py profile health-system --input hospitals.csv
-healthtech-intel.py pipeline vendor       # discover + profile in one shot (interactive query)
-healthtech-intel.py pipeline health-system --state CA   # discover + profile in one shot
+varys.py discover vendor       # prompts for query → writes entity CSV
+varys.py discover health-system --state CA   # CMS data → writes entity CSV
+varys.py profile vendor --input vendors.csv
+varys.py profile health-system --input hospitals.csv
+varys.py pipeline vendor       # discover + profile in one shot (interactive query)
+varys.py pipeline health-system --state CA   # discover + profile in one shot
 ```
 
 **`discover` flags:**
@@ -148,7 +148,7 @@ healthtech-intel.py pipeline health-system --state CA   # discover + profile in 
 | `--model` | `claude-sonnet-4-6` | Anthropic model. Override via `ANTHROPIC_MODEL`. |
 | `--yes` | false | Skip the cost confirmation prompt. |
 
-Default `--output` filenames: `healthtech-intel-vendor-research-results.csv`, `healthtech-intel-health-system-research-results.csv`, `vendor-pipeline-results.csv`, `<state>-pipeline-results.csv`.
+Default `--output` filenames: `varys-vendor-research-results.csv`, `varys-health-system-research-results.csv`, `vendor-pipeline-results.csv`, `<state>-pipeline-results.csv`.
 
 ## Requirements
 
@@ -171,7 +171,7 @@ The CLI shows an estimate and requires confirmation before any API call.
 **`--batch` uses the [Messages Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) for a ~50% cost discount.** Results are processed asynchronously — the CLI polls until complete, which can take minutes to hours depending on queue depth. Use it for large lists where cost matters more than turnaround time.
 
 ```bash
-python healthtech-intel.py profile vendor --input vendors.csv --output results.csv --batch
+python varys.py profile vendor --input vendors.csv --output results.csv --batch
 ```
 
 > Prices above are estimates only. Model pricing changes frequently. Always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.
@@ -182,6 +182,6 @@ Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
 
 For design decisions — why Python over an LLM orchestrator, how context isolation works, source priority per field, and how to tune research depth — see [Architecture & Design Decisions](docs/design.md).
 
-If you use OpenAI or Gemini instead of Anthropic, see [Using with other AI assistants](docs/other-assistants.md) to adapt `healthtech-intel.py` to another provider.
+If you use OpenAI or Gemini instead of Anthropic, see [Using with other AI assistants](docs/other-assistants.md) to adapt `varys.py` to another provider.
 
 This project was built while working through DeepLearning.AI's course, [Agent Skills with Anthropic](https://www.deeplearning.ai/short-courses/agent-skills-with-anthropic/).

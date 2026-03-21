@@ -1,5 +1,5 @@
 """
-Unit tests for healthtech-intel.py pure Python functions.
+Unit tests for varys.py pure Python functions.
 No API calls required — all tests run offline.
 """
 
@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-# healthtech-intel.py has a hyphen so standard import doesn't work; use importlib
+# varys.py has a hyphen so standard import doesn't work; use importlib
 import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
-    "healthtech_intel",
-    Path(__file__).parent.parent / "healthtech-intel.py",
+    "varys",
+    Path(__file__).parent.parent / "varys.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
@@ -223,7 +223,7 @@ class TestExecuteReadFile:
         assert "restricted" in result.lower() or ".claude/skills" in result
 
     def test_relative_traversal_blocked(self):
-        result = _execute_read_file(".claude/skills/../../healthtech-intel.py")
+        result = _execute_read_file(".claude/skills/../../varys.py")
         assert result.startswith("ERROR")
 
     def test_nonexistent_file_returns_error(self):

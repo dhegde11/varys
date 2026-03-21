@@ -1,5 +1,5 @@
 """
-Tests for CLI subcommand routing in healthtech-intel.py.
+Tests for CLI subcommand routing in varys.py.
 All API calls, file I/O, and interactive prompts are mocked — no credits needed.
 """
 
@@ -16,8 +16,8 @@ import pytest
 import importlib.util
 
 _spec = importlib.util.spec_from_file_location(
-    "healthtech_intel",
-    Path(__file__).parent.parent / "healthtech-intel.py",
+    "varys",
+    Path(__file__).parent.parent / "varys.py",
 )
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
@@ -47,33 +47,33 @@ def _mock_skill():
 
 class TestArgparseErrors:
     def test_no_subcommand_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py"]):
+        with patch("sys.argv", ["varys.py"]):
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code != 0
 
     def test_unknown_subcommand_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py", "bogus"]):
+        with patch("sys.argv", ["varys.py", "bogus"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_research_without_target_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py", "profile"]):
+        with patch("sys.argv", ["varys.py", "profile"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_research_vendor_missing_input_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py", "profile", "vendor"]):
+        with patch("sys.argv", ["varys.py", "profile", "vendor"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_discover_health_system_missing_state_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py", "discover", "health-system"]):
+        with patch("sys.argv", ["varys.py", "discover", "health-system"]):
             with pytest.raises(SystemExit):
                 main()
 
     def test_pipeline_health_system_missing_state_exits(self):
-        with patch("sys.argv", ["healthtech-intel.py", "pipeline", "health-system"]):
+        with patch("sys.argv", ["varys.py", "pipeline", "health-system"]):
             with pytest.raises(SystemExit):
                 main()
 
@@ -95,7 +95,7 @@ class TestSkillNameLookup:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -112,7 +112,7 @@ class TestSkillNameLookup:
         skill.name = "profile-health-system"
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "health-system",
+                "varys.py", "profile", "health-system",
                 "--input", inp, "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -132,7 +132,7 @@ class TestConcurrencyGuard:
         inp = _make_input_csv(tmp_path, ["Acme"])
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--concurrency", "0", "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -145,7 +145,7 @@ class TestConcurrencyGuard:
     def test_pipeline_vendor_concurrency_zero_exits(self, tmp_path, capsys):
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "vendor",
+                "varys.py", "pipeline", "vendor",
                 "--concurrency", "0", "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -162,7 +162,7 @@ class TestConcurrencyGuard:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--output", out, "--concurrency", "1", "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -183,7 +183,7 @@ class TestDiscoverVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "AI scribe companies")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "discover", "vendor", "--output", out,
+                "varys.py", "discover", "vendor", "--output", out,
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch.object(
@@ -201,7 +201,7 @@ class TestDiscoverVendor:
     def test_default_output_filename(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr("builtins.input", lambda _="": "AI scribe companies")
         with (
-            patch("sys.argv", ["healthtech-intel.py", "discover", "vendor"]),
+            patch("sys.argv", ["varys.py", "discover", "vendor"]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch.object(
                 _mod, "discover_vendors_via_llm",
@@ -219,7 +219,7 @@ class TestDiscoverVendor:
     def test_empty_query_exits(self, tmp_path, monkeypatch):
         monkeypatch.setattr("builtins.input", lambda _="": "")
         with (
-            patch("sys.argv", ["healthtech-intel.py", "discover", "vendor"]),
+            patch("sys.argv", ["varys.py", "discover", "vendor"]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -230,7 +230,7 @@ class TestDiscoverVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "query")
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
         with (
-            patch("sys.argv", ["healthtech-intel.py", "discover", "vendor"]),
+            patch("sys.argv", ["varys.py", "discover", "vendor"]),
             patch.dict(os.environ, env, clear=True),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -247,7 +247,7 @@ class TestDiscoverHealthSystem:
         out = str(tmp_path / "ca-systems.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "discover", "health-system",
+                "varys.py", "discover", "health-system",
                 "--state", "CA", "--output", out,
             ]),
             patch.object(
@@ -267,7 +267,7 @@ class TestDiscoverHealthSystem:
         """When --output is omitted, filename should be <state>-health-systems.csv."""
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "discover", "health-system", "--state", "TX",
+                "varys.py", "discover", "health-system", "--state", "TX",
             ]),
             patch.object(
                 _mod, "discover_health_systems", return_value=["Baylor Scott & White"],
@@ -292,7 +292,7 @@ class TestResearchVendor:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -310,7 +310,7 @@ class TestResearchVendor:
         p.write_text("name\nAcme\n")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", str(p), "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -323,7 +323,7 @@ class TestResearchVendor:
     def test_nonexistent_input_file_exits(self, tmp_path):
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", str(tmp_path / "ghost.csv"), "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -338,7 +338,7 @@ class TestResearchVendor:
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--yes",
             ]),
             patch.dict(os.environ, env, clear=True),
@@ -354,7 +354,7 @@ class TestResearchVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "n")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor", "--input", inp,
+                "varys.py", "profile", "vendor", "--input", inp,
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch.object(_mod, "load_skill", return_value=_mock_skill()),
@@ -372,7 +372,7 @@ class TestResearchVendor:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", inp, "--output", out,
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -388,7 +388,7 @@ class TestResearchVendor:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", str(p), "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -410,7 +410,7 @@ class TestPipelineVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "AI scribes")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "vendor",
+                "varys.py", "pipeline", "vendor",
                 "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -434,7 +434,7 @@ class TestPipelineVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "AI scribes")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "vendor",
+                "varys.py", "pipeline", "vendor",
                 "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -455,7 +455,7 @@ class TestPipelineVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "query")
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
         with (
-            patch("sys.argv", ["healthtech-intel.py", "pipeline", "vendor", "--yes"]),
+            patch("sys.argv", ["varys.py", "pipeline", "vendor", "--yes"]),
             patch.dict(os.environ, env, clear=True),
             patch.object(_mod, "load_skill", return_value=_mock_skill()),
         ):
@@ -466,7 +466,7 @@ class TestPipelineVendor:
     def test_empty_query_exits(self, tmp_path, monkeypatch):
         monkeypatch.setattr("builtins.input", lambda _="": "")
         with (
-            patch("sys.argv", ["healthtech-intel.py", "pipeline", "vendor", "--yes"]),
+            patch("sys.argv", ["varys.py", "pipeline", "vendor", "--yes"]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch.object(_mod, "load_skill", return_value=_mock_skill()),
         ):
@@ -480,7 +480,7 @@ class TestPipelineVendor:
         monkeypatch.setattr("builtins.input", lambda _="": "scribes")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "vendor",
+                "varys.py", "pipeline", "vendor",
                 "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -506,7 +506,7 @@ class TestPipelineHealthSystem:
         out = str(tmp_path / "out.csv")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "health-system",
+                "varys.py", "pipeline", "health-system",
                 "--state", "CA", "--output", out, "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -527,7 +527,7 @@ class TestPipelineHealthSystem:
         """--output omitted → <state>-pipeline-results.csv."""
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "health-system",
+                "varys.py", "pipeline", "health-system",
                 "--state", "NY", "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -552,7 +552,7 @@ class TestEmptyEntityList:
         p.write_text("entity_name\n")
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "profile", "vendor",
+                "varys.py", "profile", "vendor",
                 "--input", str(p), "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
@@ -568,7 +568,7 @@ class TestEmptyEntityList:
         """If discovery returns 0 vendors, pipeline should exit with error."""
         monkeypatch.setattr("builtins.input", lambda _="": "very specific query with no results")
         with (
-            patch("sys.argv", ["healthtech-intel.py", "pipeline", "vendor", "--yes"]),
+            patch("sys.argv", ["varys.py", "pipeline", "vendor", "--yes"]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),
             patch.object(_mod, "load_skill", return_value=_mock_skill()),
             patch.object(_mod, "discover_vendors_via_llm", new=AsyncMock(return_value=[])),
@@ -583,7 +583,7 @@ class TestEmptyEntityList:
         """If CMS returns 0 hospitals, pipeline should exit with error."""
         with (
             patch("sys.argv", [
-                "healthtech-intel.py", "pipeline", "health-system",
+                "varys.py", "pipeline", "health-system",
                 "--state", "ZZ", "--yes",
             ]),
             patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-key"}),

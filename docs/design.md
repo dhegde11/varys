@@ -19,7 +19,7 @@ Requires `ANTHROPIC_API_KEY` — set it as an environment variable before runnin
 |---|---|---|
 | **Claude Code discovery agent** | Build a competitor list from natural language, iteratively | Invoke `health-it-vendor-discoverer` agent in Claude Code |
 | **Claude Code profile skill** | Profile a single company or health system, interactive | Invoke `profile-health-it-vendor` or `profile-health-system` skill in Claude Code |
-| **CLI batch** | CSV → CSV at any scale, or discover + profile in one command | `python healthtech-intel.py profile vendor --input ... --output ...` |
+| **CLI batch** | CSV → CSV at any scale, or discover + profile in one command | `python varys.py profile vendor --input ... --output ...` |
 
 The same skill files (`.claude/skills/`) drive both Claude Code and CLI. Claude Code
 invokes them interactively; Python loads them as prompt templates for batch runs.
@@ -27,8 +27,8 @@ invokes them interactively; Python loads them as prompt templates for batch runs
 ## Components
 
 ```
-healthtech-intel/
-├── healthtech-intel.py                  # Python orchestrator — CLI batch runner
+varys/
+├── varys.py                  # Python orchestrator — CLI batch runner
 ├── requirements.txt                     # anthropic>=0.40.0, pyyaml>=6.0
 ├── sample_vendors.csv                   # Sample health IT vendor names
 ├── sample_health_systems.csv            # Sample health system names
@@ -78,7 +78,7 @@ Input CSV (entity_name column)
   —or—  CMS discovery (discover health-system --state XX)
   —or—  Vendor discovery output from Phase 1
     ↓
-healthtech-intel.py loads skill file from .claude/skills/<skill>/SKILL.md
+varys.py loads skill file from .claude/skills/<skill>/SKILL.md
     ↓
 Cost + runtime estimate shown — user must confirm before any API call
     ↓
@@ -119,7 +119,7 @@ corrupt the next.
 Skill files define the prompt and output schema. There are two forms:
 
 - **`skills/`** — flat `.md` files. Load into any AI assistant (ChatGPT, Gemini, Copilot, etc.) for interactive use.
-- **`.claude/skills/`** — extended versions with reference files (`field-definitions.md`, `source-priority.md`). Used by Claude Code interactively and loaded by `healthtech-intel.py` for batch runs.
+- **`.claude/skills/`** — extended versions with reference files (`field-definitions.md`, `source-priority.md`). Used by Claude Code interactively and loaded by `varys.py` for batch runs.
 
 A single edit to a skill propagates to both the interactive and batch interfaces. No duplication.
 
@@ -137,7 +137,7 @@ and is expensive to discover and correct later.
 
 ### Flush after every entity
 Both output CSVs are flushed row-by-row immediately after each entity completes
-([healthtech-intel.py:344-345](../healthtech-intel.py#L344-L345)). A mid-run crash — network timeout,
+([varys.py:344-345](../varys.py#L344-L345)). A mid-run crash — network timeout,
 API error, Ctrl+C — preserves every result written so far. Without this, the output
 buffers wouldn't be written until the process exits cleanly.
 
@@ -160,14 +160,14 @@ mode makes logs readable and prevents rate limits entirely. Rate limit errors ar
 automatically with exponential backoff retries.
 
 ### `read_file` restricted to `.claude/skills/`
-The client-side `read_file` tool ([healthtech-intel.py:165-184](../healthtech-intel.py#L165-L184)) whitelists
+The client-side `read_file` tool ([varys.py:165-184](../varys.py#L165-L184)) whitelists
 only the skills directory. The model can load its own reference documents but cannot
 read arbitrary filesystem paths — preventing accidental exposure of credentials, configs,
 or other local files if the model is ever prompted adversarially through a web page it fetches.
 
 ### Cost gate before any API call
 The CLI always prints an estimate and requires confirmation before calling the API
-([healthtech-intel.py:565-587](../healthtech-intel.py#L565-L587)). This makes cost visible and intentional.
+([varys.py:565-587](../varys.py#L565-L587)). This makes cost visible and intentional.
 `--yes` disables it for CI.
 
 ### Python as orchestrator, not an LLM
@@ -231,11 +231,11 @@ first, or `pipeline` to discover and profile in one shot:
 
 ```bash
 # Two-step: discover then profile
-python healthtech-intel.py discover vendor --output vendors.csv
-python healthtech-intel.py profile vendor --input vendors.csv --output results.csv
+python varys.py discover vendor --output vendors.csv
+python varys.py profile vendor --input vendors.csv --output results.csv
 
 # One-shot: discover + profile (interactive query prompt)
-python healthtech-intel.py pipeline vendor --output results.csv
+python varys.py pipeline vendor --output results.csv
 ```
 
 The discovery phase runs first (~30–60 seconds), prints the discovered company list
@@ -256,8 +256,8 @@ to a full research run.
 of hospital names ready for the research pipeline.
 
 ```bash
-python healthtech-intel.py discover health-system --state CA --output ca_hospitals.csv
-python healthtech-intel.py profile health-system --input ca_hospitals.csv --output ca_results.csv
+python varys.py discover health-system --state CA --output ca_hospitals.csv
+python varys.py profile health-system --input ca_hospitals.csv --output ca_results.csv
 ```
 
 This enables prospecting an entire state's hospital landscape without maintaining
