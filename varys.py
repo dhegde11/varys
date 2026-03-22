@@ -695,8 +695,18 @@ async def _run_batches_api(
     fields = SKILL_FIELDS[skill.name]
 
     # Build one request per entity
+    # custom_id must match ^[a-zA-Z0-9_-]{1,64}$, so sanitize entity names
+    # and keep a mapping back to the originals.
+    import re as _re
+    def _to_custom_id(name: str, idx: int) -> str:
+        sanitized = _re.sub(r"[^a-zA-Z0-9_-]", "_", name)[:60]
+        return f"{sanitized}_{idx}"
+
+    custom_id_to_entity: dict[str, str] = {}
     requests = []
-    for entity_name in entities:
+    for idx, entity_name in enumerate(entities):
+        custom_id = _to_custom_id(entity_name, idx)
+        custom_id_to_entity[custom_id] = entity_name
         static_text = skill.prompt_template.replace("{entity}", "[ENTITY]")
         messages = [
             {
@@ -715,10 +725,11 @@ async def _run_batches_api(
             }
         ]
         requests.append({
-            "custom_id": entity_name,
+            "custom_id": custom_id,
             "params": {
                 "model": model,
                 "max_tokens": 4096,
+                "thinking": {"type": "adaptive"},
                 "tools": [
                     {"type": "web_search_20260209", "name": "web_search", "max_uses": 3, "allowed_callers": ["direct"]},
                     {"type": "web_fetch_20260209",  "name": "web_fetch",  "max_uses": 2, "allowed_callers": ["direct"]},
@@ -755,7 +766,7 @@ async def _run_batches_api(
     error_count = 0
 
     async for result in await client.messages.batches.results(batch_id):
-        entity_name = result.custom_id
+        entity_name = custom_id_to_entity.get(result.custom_id, result.custom_id)
         if result.result.type == "succeeded":
             text = next(
                 (b.text for b in result.result.message.content if hasattr(b, "text")),
@@ -913,6 +924,33 @@ def discover_health_systems(state: str) -> list[str]:
 # CLI helpers
 # ---------------------------------------------------------------------------
 
+def _needs_rerun(sources_row: dict, fields: list[str]) -> bool:
+    """Return True if any field has an empty value or non-high confidence."""
+    for f in fields[1:]:  # skip entity_name
+        if sources_row.get(f, "") == "" or sources_row.get(f"{f}_confidence", "") != "high":
+            return True
+    return False
+
+
+def _rewrite_csvs(
+    output_path: str,
+    sources_path: str,
+    clean_fieldnames: list[str],
+    src_fieldnames: list[str],
+    clean_rows: list[dict],
+    sources_rows: list[dict],
+) -> None:
+    """Overwrite both CSVs with the given rows (used after agentic follow-up merges results)."""
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=clean_fieldnames, extrasaction="raise")
+        w.writeheader()
+        w.writerows(clean_rows)
+    with open(sources_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=src_fieldnames, extrasaction="raise")
+        w.writeheader()
+        w.writerows(sources_rows)
+
+
 def _run_research(entities: list[str], skill, args, output_path, sources_path) -> None:
     """Open output CSVs and run the appropriate research runner (batch/concurrent/sequential)."""
     fields = SKILL_FIELDS[skill.name]
@@ -945,6 +983,65 @@ def _run_research(entities: list[str], skill, args, output_path, sources_path) -
             success_count, error_count = asyncio.run(
                 _run_sequential(entities, skill, args.model, clean_writer, sources_writer, clean_f, src_f)
             )
+
+    # ---------------------------------------------------------------------------
+    # Hybrid follow-up: after batch, re-run agentic on low-confidence entities
+    # ---------------------------------------------------------------------------
+    if args.batch:
+        with open(sources_path, newline="", encoding="utf-8") as f:
+            sources_rows = list(csv.DictReader(f))
+
+        rerun_entities = [
+            row["entity_name"] for row in sources_rows
+            if _needs_rerun(row, fields)
+        ]
+
+        if rerun_entities:
+            print(f"\n{len(rerun_entities)} entities have low/missing confidence — running agentic follow-up:")
+            for name in rerun_entities:
+                print(f"  • {name}")
+            print()
+
+            # Collect agentic results into temporary in-memory CSV buffers
+            import io
+            clean_buf   = io.StringIO()
+            sources_buf = io.StringIO()
+            tmp_clean_w   = csv.DictWriter(clean_buf,   fieldnames=clean_fieldnames, extrasaction="raise")
+            tmp_sources_w = csv.DictWriter(sources_buf, fieldnames=src_fieldnames,   extrasaction="raise")
+            tmp_clean_w.writeheader()
+            tmp_sources_w.writeheader()
+
+            rerun_success, rerun_error = asyncio.run(
+                _run_sequential(
+                    rerun_entities, skill, args.model,
+                    tmp_clean_w, tmp_sources_w,
+                    clean_buf, sources_buf,
+                )
+            )
+            success_count += rerun_success
+            error_count   += rerun_error
+
+            # Build updated rows: start from batch results, overwrite re-run entities
+            clean_buf.seek(0)
+            sources_buf.seek(0)
+            rerun_clean_rows   = {r["entity_name"]: r for r in csv.DictReader(clean_buf)}
+            rerun_sources_rows = {r["entity_name"]: r for r in csv.DictReader(sources_buf)}
+
+            with open(output_path, newline="", encoding="utf-8") as f:
+                merged_clean = [
+                    rerun_clean_rows.get(r["entity_name"], r)
+                    for r in csv.DictReader(f)
+                ]
+            merged_sources = [
+                rerun_sources_rows.get(r["entity_name"], r)
+                for r in sources_rows
+            ]
+
+            _rewrite_csvs(output_path, sources_path, clean_fieldnames, src_fieldnames,
+                          merged_clean, merged_sources)
+            print(f"Agentic follow-up complete. {rerun_success} updated, {rerun_error} failed.")
+        else:
+            print("\nAll fields have high confidence — no agentic follow-up needed.")
 
     print(f"\nDone. {success_count} succeeded, {error_count} failed.")
     print(f"Clean results:   {output_path}")
