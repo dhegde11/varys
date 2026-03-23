@@ -769,7 +769,7 @@ async def _run_batches_api(
         entity_name = custom_id_to_entity.get(result.custom_id, result.custom_id)
         if result.result.type == "succeeded":
             text = next(
-                (b.text for b in result.result.message.content if hasattr(b, "text")),
+                (b.text for b in result.result.message.content if getattr(b, "type", None) == "text"),
                 None,
             )
             if text:
@@ -925,9 +925,16 @@ def discover_health_systems(state: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 def _needs_rerun(sources_row: dict, fields: list[str]) -> bool:
-    """Return True if any field has an empty value or non-high confidence."""
+    """Return True if any field has an empty value or explicitly low confidence.
+
+    "medium" confidence is acceptable — re-running agentic for a medium-confidence
+    result wastes cost without guaranteed improvement. Only re-run when confidence
+    is "low" (model flagged the source as weak) or "" (no data found at all).
+    """
     for f in fields[1:]:  # skip entity_name
-        if sources_row.get(f, "") == "" or sources_row.get(f"{f}_confidence", "") != "high":
+        value      = sources_row.get(f, "")
+        confidence = sources_row.get(f"{f}_confidence", "")
+        if value == "" or confidence == "low":
             return True
     return False
 

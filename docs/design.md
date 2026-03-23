@@ -159,6 +159,40 @@ When debugging or running on a trial API key with tight per-minute limits, seque
 mode makes logs readable and prevents rate limits entirely. Rate limit errors are handled
 automatically with exponential backoff retries.
 
+### Hybrid batch + agentic follow-up
+
+`--batch` runs two phases automatically:
+
+1. **Batch phase** — all entities submitted to the Messages Batches API in one call with adaptive thinking enabled. Single-shot per entity, 50% cost discount, processed asynchronously.
+2. **Agentic follow-up** — after batch completes, the sources CSV is scanned for weak results. Entities where any field has an empty value or explicitly `"low"` confidence are re-run through the full agentic loop sequentially (concurrency=1).
+
+**Why "low" and empty, not "medium":**
+`"medium"` confidence means the model found a source but it wasn't authoritative (e.g., a news article rather than a company filing). Re-running agentically rarely upgrades medium → high — the source just doesn't exist at higher authority. Re-running costs as much as a fresh agentic run, so the bar is set at `"low"` (model flagged the source as weak) and `""` (no data found at all). Medium results are accepted as-is.
+
+**Why concurrency=1 for the follow-up:**
+The follow-up runs after a full batch, meaning your API token budget for the minute is already partially consumed. Sequential execution also avoids the compounding rate-limit risk of multiple large agentic contexts firing simultaneously (see rate limits note below).
+
+**Observed cost (10 AI scribe vendors, Mar 2026):**
+- Batch-only (no follow-up triggered): ~$0.20
+- Batch + full agentic follow-up for all 10: ~$2.00
+- The hybrid is only cost-effective when the follow-up subset is small — ideally 20–30% of entities, not all of them.
+
+### Rate limits on the 30,000 input tokens/minute plan
+
+Agentic runs accumulate large contexts. A single entity doing 2 rounds with multiple web search and web fetch results can easily send 10,000–20,000 input tokens in one request. At concurrency=5, five entities firing simultaneously can exceed 30k tokens in a burst, triggering 429 errors.
+
+**Recommended concurrency by tier:**
+
+| Plan limit | Safe concurrency | Notes |
+|---|---|---|
+| 30k input tokens/min | 1–2 | Even sequential can hit limits on heavy tool-use rounds; retry backoff handles it |
+| 100k input tokens/min | 3–5 | Default of 5 is comfortable |
+| 200k+ input tokens/min | 5–10 | Rarely rate-limited |
+
+The agentic follow-up in hybrid mode always uses concurrency=1 regardless of your `--concurrency` flag. This is intentional — by the time the follow-up runs, the batch phase has already consumed budget for the minute, and the follow-up entities tend to be obscure companies that generate more tool calls (more tokens) than average.
+
+Rate limit errors are handled automatically with exponential backoff (60s, then 120s). A run will complete even if it hits limits — it just takes longer.
+
 ### `read_file` restricted to `.claude/skills/`
 The client-side `read_file` tool ([varys.py:165-184](../varys.py#L165-L184)) whitelists
 only the skills directory. The model can load its own reference documents but cannot
