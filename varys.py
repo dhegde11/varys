@@ -141,8 +141,8 @@ SKILL_OUTPUT_SCHEMAS = {
 
 
 # Cost estimate constants (rough median per entity, claude-sonnet-4-6 with web tools)
-COST_PER_ENTITY_LOW  = 0.15   # USD
-COST_PER_ENTITY_HIGH = 0.40   # USD
+COST_PER_ENTITY_LOW  = 0.15   # USD — based on Mar 2026 test runs
+COST_PER_ENTITY_HIGH = 0.25   # USD — based on Mar 2026 test runs (~$0.20 typical)
 AVG_SECONDS_PER_ENTITY = 45   # wall-clock seconds at typical tool round count
 
 
@@ -451,8 +451,6 @@ async def research_entity_async(
         heartbeat = asyncio.create_task(_heartbeat(heartbeat_prefix))
         try:
             # Retry this round with exponential backoff on 429 rate limit errors.
-            # Use create() (not stream()) so response.container is populated,
-            # which is required for multi-round calls when code execution runs.
             for attempt in range(3):
                 try:
                     response = await client.messages.create(**stream_kwargs)

@@ -9,11 +9,15 @@ venv/
 env/
 
 # Output files (don't commit research results)
-results*.csv
+*results*.csv
 *_sources.csv
 *.sqlite
 outputs/
 discovered_competitors.csv
+
+# Demo assets
+*.mp4
+*.gif
 
 # Environment
 .env
