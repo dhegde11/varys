@@ -143,7 +143,7 @@ varys.py pipeline health-system --state CA   # discover + profile in one shot
 |---|---|---|
 | `--input` | _(required for profile)_ | Input CSV with `entity_name` column. |
 | `--output` | see below | Output CSV. A `_sources.csv` is auto-written alongside it. |
-| `--batch` | false | Use Messages Batches API (~50% cost, async). |
+| `--batch` | false | Hybrid batch + agentic mode. See [Batch vs agentic mode](#batch-vs-agentic-mode). |
 | `--concurrency` | `1` | Parallel API calls. Default is 1 (sequential). Increase based on your Anthropic rate limit tier — see [Concurrency and rate limits](#concurrency-and-rate-limits). |
 | `--model` | `claude-sonnet-4-6` | Anthropic model. Override via `ANTHROPIC_MODEL`. |
 | `--yes` | false | Skip the cost confirmation prompt. |
@@ -153,32 +153,27 @@ Default `--output` filenames: `varys-vendor-research-results.csv`, `varys-health
 ## Requirements
 
 - `ANTHROPIC_API_KEY` — set in environment before running
-- `anthropic>=0.40.0`
+- `anthropic>=0.84.0`
 - `pyyaml>=6.0`
 
 ## Batch vs agentic mode
 
-| | `--batch` | Default (agentic) |
+Anthropic's [Messages Batches API](https://docs.anthropic.com/en/docs/build-with-claude/message-batches) offers a 50% discount off regular API pricing by processing requests asynchronously. `--batch` uses this to keep costs low without sacrificing quality — it starts with a cost-efficient single-shot pass, then automatically runs the full agentic loop only on entities where the batch returned weak or missing fields. This is the tradeoff: lower cost at the expense of a longer total turnaround.
+
+| | `--batch` (hybrid) | Default (agentic) |
 |---|---|---|
-| **How it works** | Single-shot per entity with adaptive thinking, then agentic follow-up on weak fields | Full multi-round agentic loop from the start |
-| **Best for** | Mixed lists, large lists, fire-and-forget async workflows | Mostly obscure/early-stage companies, when you need results immediately |
+| **How it works** | Single-shot with adaptive thinking (50% discount), then agentic follow-up on weak fields only | Full multi-round agentic loop from the start |
 | **Well-known companies** | Excellent — high confidence, minimal follow-up needed | Excellent |
 | **Obscure/early-stage companies** | Good — adaptive thinking helps, agentic follow-up catches gaps | Best — multi-round web research from the start |
 | **Cost** | ~$0.02/company in tests | ~$0.20/company |
 | **Turnaround** | ~1 hour for 10 companies (async, Anthropic-side queue) | ~2–3 min per entity sequentially |
-| **Rate limit pressure** | None during batch phase | Hits limits on 30k TPM plans even at `--concurrency 1` |
+| **Rate limit pressure** | None during batch phase; agentic follow-up is subject to your TPM limit | Subject to your TPM limit throughout |
 
 **Rule of thumb:** use `--batch` when you want to optimize for cost over latency, or your list is mostly well-known companies. Use agentic when you need results immediately or your list is mostly obscure/early-stage companies.
 
-## Cost
+The CLI always shows a cost estimate and requires confirmation before any API call. Use `--yes` to skip this in CI or scripted workflows.
 
-The CLI shows an estimate and requires confirmation before any API call.
-
-**Real-world cost: ~$0.02 per company with `--batch`, ~$0.20 per company with agentic** (varies by entity obscurity).
-
-> Prices are estimates based on claude-sonnet-4-6 (March 2026). Model pricing changes — always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.
-
-Use `--yes` to skip the confirmation prompt in CI or scripted workflows.
+> Cost estimates based on claude-sonnet-4-6 (March 2026). Model pricing changes — always check [anthropic.com/pricing](https://anthropic.com/pricing) before large runs.
 
 ## Concurrency and rate limits
 

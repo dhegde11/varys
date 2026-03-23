@@ -146,13 +146,10 @@ Keeping source URLs and confidence levels in a separate `_sources.csv` avoids po
 the clean output with 3× as many columns. Consumers who want to import or share results
 use the clean file. QA and verification use the sources file.
 
-### Concurrency default of 5, not 10 or 20
-`web_search` and `web_fetch` are server-side tools: all searching happens inside a single
-API call, not across multiple round-trips. Each entity therefore makes 1–2 API calls total.
-At high concurrency those calls are still token-heavy, and many simultaneous large requests
-hit Anthropic rate limits (429). At 20 concurrent workers, a mis-specified input CSV could
-exhaust significant API budget before you can interrupt the run. 5 is conservative enough
-to rarely rate-limit while still being fast: 50 companies completes in ~7 minutes.
+### Concurrency default of 1
+Each entity runs a multi-round agentic loop: the model searches the web, accumulates tool results across rounds, and builds a growing context window. A single entity can send 10,000–20,000 input tokens in one request by round 2. Running multiple entities in parallel multiplies this simultaneously, which triggers 429 rate limit errors on lower usage tiers (30k input tokens/min). At high concurrency, a mis-specified input CSV could also exhaust significant API budget before you can interrupt the run.
+
+The default of 1 (sequential) is safe on any tier. Increase `--concurrency` based on your Anthropic rate limit tier — see the README for a tier-to-concurrency guidance table.
 
 ### Sequential mode (`--concurrency 1`)
 When debugging or running on a trial API key with tight per-minute limits, sequential
@@ -160,6 +157,8 @@ mode makes logs readable and prevents rate limits entirely. Rate limit errors ar
 automatically with exponential backoff retries.
 
 ### Hybrid batch + agentic follow-up
+
+Anthropic's Messages Batches API gives a 50% discount off regular API pricing by processing requests asynchronously. The hybrid mode uses this discount for a first pass over all entities, then spends full agentic cost only where the batch result was actually weak. The goal is cost savings without sacrificing answer quality — the 50% discount is the economic motivation, and the agentic follow-up is what ensures accuracy isn't traded away for it.
 
 `--batch` runs two phases automatically:
 
