@@ -7,17 +7,15 @@ A market intelligence tool for the health IT ecosystem with four capabilities:
 - **Health system discovery** — Discover hospitals and health systems by US state from the public CMS dataset. No input list needed — a free, open-source alternative to [Definitive Healthcare](https://www.definitivehc.com/).
 - **Health system profiling** — Profile hospitals and health systems for BD prospecting. EHR vendor, bed count, CMS star rating, payer mix, CIO name, and more.
 
-<div align="center">
-<img src="https://github.com/user-attachments/assets/42710642-6c8f-43dc-addc-522c7ae22aa3" width="600"/>
-</div>
-
-<br/>
-
 Two ways to use this tool:
 
 **One at a time (interactive)** — Load a skill file into any AI assistant (Claude, ChatGPT, Gemini, etc.) and research entities conversationally. Ask follow-up questions, refine results, and build a competitor list interactively before exporting.
 
+<img src="https://github.com/user-attachments/assets/42710642-6c8f-43dc-addc-522c7ae22aa3" width="600"/>
+
 **Batch processing (CLI)** — Run `varys.py` to process a CSV list end-to-end. Outputs clean values and source-cited results at any scale.
+
+<img src="https://github.com/user-attachments/assets/675a72fd-c36e-431c-af7f-de23efb6df98" width="600"/>
 
 ## Useful for
 
